@@ -1,0 +1,7 @@
+{
+  "name": "camera-gallery-card",
+  "version": "1.0.0",
+  "description": "Timeline based media gallery card for Home Assistant",
+  "author": "Your Name",
+  "license": "MIT"
+}
