@@ -56,3 +56,63 @@ timeline: true
 thumbs: true
 thumbs_count: 12
 thumb_size: 72
+```
+
+## File Sensor Setup
+
+The card requires a **file sensor** that scans a directory and exposes the file list as an attribute.
+This sensor is provided by a custom integration that you need to install first.
+
+### 1. Install the Files integration
+
+Install the **Files** custom component via [HACS](https://hacs.xyz/) or manually:
+
+- **HACS:** Search for "Files" in the Integrations tab and install it.
+- **Manual:** Copy the `files` folder to your `/config/custom_components/` directory.
+
+> After installing, restart Home Assistant.
+
+### 2. Create the sensor
+
+Add the following to your `configuration.yaml`:
+
+```yaml
+sensor:
+  - platform: files
+    folder: /config/www/your_camera_folder
+    name: your_camera_gallery
+    sort: date
+```
+
+| Option   | Description                                                    |
+|----------|----------------------------------------------------------------|
+| `folder` | Path to the directory where your camera saves `.jpg` / `.mp4` files. Must be inside `/config/www/` so Home Assistant can serve them. |
+| `name`   | Name of the sensor. This determines the entity ID (e.g. `sensor.your_camera_gallery`). |
+| `sort`   | Sort order for the file list. Use `date` to show the most recent files first. |
+
+**Example** for a doorbell camera:
+
+```yaml
+sensor:
+  - platform: files
+    folder: /config/www/doorbell/auto
+    name: doorbell_gallery
+    sort: date
+```
+
+### 3. Restart & verify
+
+1. Restart Home Assistant (or reload the configuration).
+2. Open **Developer Tools → States** and search for your sensor (e.g. `sensor.doorbell_gallery`).
+3. Confirm the `fileList` attribute contains an array of file paths.
+
+### 4. Add the card
+
+In your Lovelace dashboard, add the **Camera Gallery Card** and set the **File sensor** to your sensor entity:
+
+```yaml
+type: custom:camera-gallery-card
+entity: sensor.doorbell_gallery
+```
+
+> **Important:** Files must be inside `/config/www/` — Home Assistant serves this directory at the `/local/` URL path.
