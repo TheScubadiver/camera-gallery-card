@@ -32,7 +32,7 @@ Everything is optimized for speed and smooth interaction.
 
 ---
 
-## 🚀 Installation (HACS - Recommended)
+## 🚀 Installation
 
 1. Open **HACS → Frontend**
 2. Click **⋮ → Custom repositories**
