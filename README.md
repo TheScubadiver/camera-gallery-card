@@ -3,7 +3,22 @@
 A lightweight, swipeable media gallery card for [Home Assistant](https://www.home-assistant.io/) Lovelace.
 Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by date, with day-by-day navigation, bulk selection, download, and delete support.
 
-> **Current version:** 1.0.0
+> **Current version:** 1.0.2
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [File Sensor Setup](#file-sensor-setup)
+- [Automation Example](#automation-example)
+- [Card Configuration](#card-configuration)
+- [Delete Setup](#delete-setup)
+- [File Naming Convention](#file-naming-convention)
+- [Languages](#languages)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
 ---
 
@@ -15,6 +30,7 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 - ✅ Bulk select & delete mode
 - ⬇️ One-tap download for any file
 - 🕒 Configurable timestamp bar (top / bottom / hidden)
+- 🌍 Multi-language support (English, Dutch, German, French)
 - 🎨 Visual editor — no YAML needed
 - 📱 Fully responsive, touch-friendly design
 
@@ -92,6 +108,51 @@ sensor:
 
 ---
 
+## Automation Example
+
+To populate the gallery, create an automation that saves a snapshot when motion is detected (or any other trigger). The key is the **action** — it saves the file with the correct naming pattern so the card can extract dates and times.
+
+### Snapshot (`.jpg`)
+
+```yaml
+automation:
+  - alias: "Camera snapshot on motion"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.your_motion_sensor
+        to: "on"
+    action:
+      - service: camera.snapshot
+        target:
+          entity_id: camera.your_camera
+        data:
+          filename: "/config/www/your_camera_folder/{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg"
+```
+
+### Video clip (`.mp4`)
+
+If your camera integration supports recording clips:
+
+```yaml
+automation:
+  - alias: "Camera clip on motion"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.your_motion_sensor
+        to: "on"
+    action:
+      - service: camera.record
+        target:
+          entity_id: camera.your_camera
+        data:
+          filename: "/config/www/your_camera_folder/{{ now().strftime('%Y%m%d_%H%M%S') }}.mp4"
+          duration: 10
+```
+
+> **Important:** Make sure the `filename` path matches the `folder` in your [file sensor](#file-sensor-setup). The `%Y%m%d_%H%M%S` format produces filenames like `20250227_143022.jpg` which the card uses for date filtering and timestamps.
+
+---
+
 ## Card Configuration
 
 ### Visual editor
@@ -164,6 +225,21 @@ YYYYMMDD_HHMMSS.mp4
 - `20250227_090000.mp4` → February 27, 2025 at 09:00:00
 
 If filenames do not contain a date pattern, the card still works but day filtering and timestamps will not be available.
+
+---
+
+## Languages
+
+The card automatically detects your Home Assistant language setting and supports:
+
+| Language | Code |
+|----------|------|
+| English | `en` |
+| Dutch | `nl` |
+| German | `de` |
+| French | `fr` |
+
+If your language is not listed, the card falls back to English.
 
 ---
 
