@@ -46,7 +46,7 @@ const THUMB_GAP = 12;
 const DEFAULT_ALLOW_DELETE = true;
 const DEFAULT_ALLOW_BULK_DELETE = true;
 const DEFAULT_DELETE_CONFIRM = true;
-const DEFAULT_DELETE_SERVICE = "shell_command.delete";
+const DEFAULT_DELETE_SERVICE = "";
 const DEFAULT_DELETE_PREFIX = "/config/www/"; // only allow deleting within www by default
 
 const STYLE = {
