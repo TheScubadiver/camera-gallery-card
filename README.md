@@ -29,6 +29,7 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 - ✅ Bulk select & delete mode
 - ⬇️ One-tap download for any file
 - 🕒 Configurable timestamp bar (top / bottom / hidden)
+- 🌍 Multi-language support (English, Dutch, German, French)
 - 🎨 Visual editor — no YAML needed
 - 📱 Fully responsive, touch-friendly design
 
@@ -61,14 +62,14 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 The card requires a **file sensor** that scans a directory and exposes the file list as an attribute.
 This sensor is provided by a custom integration that you need to install first.
 
-[![Add Files integration to My Home Assistant](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=file)
+### 1. Install the Files in a Folder integration
 
-### 1. Install the Files integration
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=TarheelGrad1998&repository=files&category=integration)
 
-Install the **Files** custom component via [HACS](https://hacs.xyz/) or manually:
+Or install manually:
 
-- **HACS:** Search for **Files** in the Integrations tab and install it.
-- **Manual:** Copy the `files` folder to your `/config/custom_components/` directory.
+- **HACS:** Search for **Files in a Folder** in the Integrations tab and install it.
+- **Manual:** Copy the `files` folder from [this repository](https://github.com/TarheelGrad1998/files) to your `/config/custom_components/` directory.
 
 After installing, restart Home Assistant.
 
