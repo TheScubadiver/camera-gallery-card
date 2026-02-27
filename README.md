@@ -119,9 +119,6 @@ shell_command: shell_command.delete
 | `thumb_size` | number | `140` | Thumbnail size in pixels (min: 40, max: 220). |
 | `bar_position` | string | `top` | Position of the timestamp bar: `top`, `bottom`, or `hidden`. |
 | `shell_command` | string | `shell_command.delete` | Service to call when deleting files (format: `domain.service`). |
-| `allow_delete` | boolean | `true` | Enable or disable file deletion. |
-| `allow_bulk_delete` | boolean | `true` | Enable or disable bulk selection & deletion. |
-| `delete_confirm` | boolean | `true` | Show a confirmation dialog before deleting. |
 
 ---
 
@@ -168,21 +165,6 @@ YYYYMMDD_HHMMSS.mp4
 - `20250227_090000.mp4` → February 27, 2025 at 09:00:00
 
 If filenames do not contain a date pattern, the card still works but day filtering and timestamps will not be available.
-
----
-
-## Languages
-
-The card automatically detects your Home Assistant language setting and supports:
-
-| Language | Code |
-|----------|------|
-| English | `en` |
-| Dutch | `nl` |
-| German | `de` |
-| French | `fr` |
-
-If your language is not listed, the card falls back to English.
 
 ---
 
