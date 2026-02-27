@@ -133,7 +133,7 @@ class CameraGalleryCard extends LitElement {
       delete_confirm: DEFAULT_DELETE_CONFIRM,
 
       // ✅ alias (optional)
-      shell_command: DEFAULT_DELETE_SERVICE,
+      shell_command: "",
     };
   }
 
