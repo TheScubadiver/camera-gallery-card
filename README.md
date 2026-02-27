@@ -1,64 +1,49 @@
 # Camera Gallery Card
 
-Camera Gallery Card is a fast and interactive media gallery card for Home Assistant.  
-Browse doorbell snapshots and recordings in a clean timeline view, filter by day, scrub through events, preview media instantly, and manage files with built-in download and delete controls — directly from the card.
+A lightweight, swipeable media gallery card for [Home Assistant](https://www.home-assistant.io/) Lovelace.
+Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by date, with day-by-day navigation, bulk selection, download, and delete support.
+
+> **Current version:** 1.0.2
 
 ---
 
-## - Features
+## Features
 
-- Timeline-based media browsing
-- Instant preview of images and videos
-- Day filtering for quick navigation
-- Smooth timeline scrubbing
-- Download recordings directly from the card
-- Delete media with immediate UI update
-- Mode indicators (Home / Away / Night)
-- Lightweight and fast rendering
-- Fully local — no external services required
-
----
-
-## - Preview
-
-The card displays:
-
-- A large preview area for images and videos
-- A timeline with event distribution
-- Timeline thumbnails for quick navigation
-- Media controls for download and deletion
-
-Everything is optimized for speed and smooth interaction.
+- 🖼️ Full-width preview with swipe navigation
+- 🎬 Inline video playback with auto-generated poster thumbnails
+- 📅 Day-by-day filtering with date navigation
+- ✅ Bulk select & delete mode
+- ⬇️ One-tap download for any file
+- 🕒 Configurable timestamp bar (top / bottom / hidden)
+- 🌍 Multi-language support (English, Dutch, German, French)
+- 🎨 Visual editor — no YAML needed
+- 📱 Fully responsive, touch-friendly design
 
 ---
 
-## - Installation
+## Installation
 
-1. Open **HACS → Frontend**
-2. Click **⋮ → Custom repositories**
-3. Add your repository URL
-4. Select **Frontend**
-5. Install the card
-6. Reload Home Assistant
-7. Hard refresh your browser (Ctrl+F5)
+### HACS (recommended)
+
+1. Open HACS in Home Assistant.
+2. Go to **Frontend** → click the **⋮** menu → **Custom repositories**.
+3. Add this repository URL: `https://github.com/TheScubadiver/camera-gallery-card`
+4. Select **Dashboard** as the category and click **Add**.
+5. Search for **Camera Gallery Card** and click **Install**.
+6. Restart Home Assistant.
+
+### Manual
+
+1. Download `camera-gallery-card.js` and `camera-gallery-card-editor.js` from the [latest release](https://github.com/TheScubadiver/camera-gallery-card/releases).
+2. Copy both files to `/config/www/camera-gallery-card/`.
+3. Add the resource in **Settings → Dashboards → Resources**:
+   - **URL:** `/local/camera-gallery-card/camera-gallery-card.js`
+   - **Type:** JavaScript Module
+4. Restart Home Assistant.
 
 ---
 
-## - Example Configuration
-
-```yaml
-type: custom:camera-gallery-card
-entity: sensor.doorbell_media
-media_path: /config/www/doorbell
-mode_entity: input_select.house_mode
-preview_height: 320
-timeline: true
-thumbs: true
-thumbs_count: 12
-thumb_size: 72
-```
-
-## - File Sensor Setup
+## File Sensor Setup
 
 The card requires a **file sensor** that scans a directory and exposes the file list as an attribute.
 This sensor is provided by a custom integration that you need to install first.
@@ -67,10 +52,10 @@ This sensor is provided by a custom integration that you need to install first.
 
 Install the **Files** custom component via [HACS](https://hacs.xyz/) or manually:
 
-- **HACS:** Search for "Files" in the Integrations tab and install it.
+- **HACS:** Search for **Files** in the Integrations tab and install it.
 - **Manual:** Copy the `files` folder to your `/config/custom_components/` directory.
 
-> After installing, restart Home Assistant.
+After installing, restart Home Assistant.
 
 ### 2. Create the sensor
 
@@ -84,10 +69,10 @@ sensor:
     sort: date
 ```
 
-| Option   | Description                                                    |
-|----------|----------------------------------------------------------------|
-| `folder` | Path to the directory where your camera saves `.jpg` / `.mp4` files. Must be inside `/config/www/` so Home Assistant can serve them. |
-| `name`   | Name of the sensor. This determines the entity ID (e.g. `sensor.your_camera_gallery`). |
+| Option   | Description |
+|----------|-------------|
+| `folder` | Path to the directory where your camera saves `.jpg` / `.mp4` files. **Must be inside `/config/www/`** so Home Assistant can serve them. |
+| `name`   | Name of the sensor. Determines the entity ID (e.g. `sensor.your_camera_gallery`). |
 | `sort`   | Sort order for the file list. Use `date` to show the most recent files first. |
 
 **Example** for a doorbell camera:
@@ -100,19 +85,128 @@ sensor:
     sort: date
 ```
 
-### 3. Restart & verify
+### 3. Verify the sensor
 
 1. Restart Home Assistant (or reload the configuration).
-2. Open **Developer Tools → States** and search for your sensor (e.g. `sensor.doorbell_gallery`).
+2. Go to **Developer Tools → States** and search for your sensor (e.g. `sensor.doorbell_gallery`).
 3. Confirm the `fileList` attribute contains an array of file paths.
 
-### 4. Add the card
+---
 
-In your Lovelace dashboard, add the **Camera Gallery Card** and set the **File sensor** to your sensor entity:
+## Card Configuration
+
+### Visual editor
+
+The card has a built-in visual editor. Add the card to your dashboard and configure it through the UI — no YAML required.
+
+### YAML
 
 ```yaml
 type: custom:camera-gallery-card
 entity: sensor.doorbell_gallery
+preview_height: 320
+thumb_size: 140
+bar_position: top
+shell_command: shell_command.delete
 ```
 
-> **Important:** Files must be inside `/config/www/` — Home Assistant serves this directory at the `/local/` URL path.
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `entity` | string | **required** | Entity ID of your file sensor (must have a `fileList` attribute). |
+| `preview_height` | number | `320` | Height of the preview area in pixels. |
+| `thumb_size` | number | `140` | Thumbnail size in pixels (min: 40, max: 220). |
+| `bar_position` | string | `top` | Position of the timestamp bar: `top`, `bottom`, or `hidden`. |
+| `shell_command` | string | `shell_command.delete` | Service to call when deleting files (format: `domain.service`). |
+| `allow_delete` | boolean | `true` | Enable or disable file deletion. |
+| `allow_bulk_delete` | boolean | `true` | Enable or disable bulk selection & deletion. |
+| `delete_confirm` | boolean | `true` | Show a confirmation dialog before deleting. |
+
+---
+
+## Delete Setup
+
+The card can delete files by calling a shell command service. To enable this:
+
+### 1. Create the shell command
+
+Add the following to your `configuration.yaml`:
+
+```yaml
+shell_command:
+  delete: "rm -f '{{ path }}'"
+```
+
+> ⚠️ **Warning:** This permanently deletes files. Make sure your camera folder path is correct and consider adding backups.
+
+### 2. Configure the card
+
+Set the `shell_command` option to match the service name:
+
+```yaml
+shell_command: shell_command.delete
+```
+
+### 3. Restart Home Assistant
+
+The delete and bulk delete buttons will now be active.
+
+---
+
+## File Naming Convention
+
+The card extracts dates and times from filenames to enable day filtering and timestamp display. Files should follow this naming pattern:
+
+```
+YYYYMMDD-HHMMSS.jpg
+YYYYMMDD_HHMMSS.mp4
+```
+
+**Examples:**
+- `20250227-143022.jpg` → February 27, 2025 at 14:30:22
+- `20250227_090000.mp4` → February 27, 2025 at 09:00:00
+
+If filenames do not contain a date pattern, the card still works but day filtering and timestamps will not be available.
+
+---
+
+## Languages
+
+The card automatically detects your Home Assistant language setting and supports:
+
+| Language | Code |
+|----------|------|
+| English | `en` |
+| Dutch | `nl` |
+| German | `de` |
+| French | `fr` |
+
+If your language is not listed, the card falls back to English.
+
+---
+
+## Troubleshooting
+
+**Card not showing up after installation**
+- Make sure the resource is added correctly in **Settings → Dashboards → Resources**.
+- Clear your browser cache or do a hard refresh (`Ctrl + Shift + R`).
+
+**"No media found" message**
+- Check that your file sensor entity exists in **Developer Tools → States**.
+- Verify the `fileList` attribute contains an array of file paths.
+- Make sure your files are inside `/config/www/` (served at `/local/`).
+
+**Delete not working**
+- Verify the shell command exists: check **Developer Tools → Services** for your service.
+- Make sure the file paths start with `/config/www/`.
+- Check your Home Assistant logs for permission errors.
+
+**Videos not playing**
+- Ensure your `.mp4` files are encoded with H.264 video and AAC audio for maximum browser compatibility.
+
+---
+
+## License
+
+MIT © [TheScubadiver](https://github.com/TheScubadiver)
