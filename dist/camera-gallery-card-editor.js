@@ -48,7 +48,7 @@ class CameraGalleryCardEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:8px 0; }
-        .wrap { display:grid; gap:8px; }
+        .wrap { display:grid; gap:14px; }
 
         .row {
           display:grid;
@@ -100,8 +100,8 @@ class CameraGalleryCardEditor extends HTMLElement {
         <div class="row">
           <div class="lbl">File sensor</div>
           <div class="desc">
-            Sensor entity that contains the <code>fileList</code> attribute
-            <br>See the <a href="https://github.com/TheScubadiver/camera-gallery-card/tree/main?tab=readme-ov-file#-installation" target="_blank">GitHub repository</a> for installation instructions
+            Sensor entity that contains the <code>fileList</code> attribute.
+            See the GitHub repository for installation instructions.
           </div>
           <input class="input" id="entity"
             type="text"
@@ -112,10 +112,7 @@ class CameraGalleryCardEditor extends HTMLElement {
         <!-- SHELL COMMAND -->
         <div class="row">
           <div class="lbl">Shell command</div>
-          <div class="desc">
-            Service to call for deletion
-            <br>See the <a href="https://github.com/TheScubadiver/camera-gallery-card" target="_blank">GitHub repository</a> for installation instructions
-          </div>
+          <div class="desc">Service to call for deletion (domain.service).</div>
           <input class="input" id="shell"
             type="text"
             placeholder="example: shell_command.delete"
@@ -125,7 +122,7 @@ class CameraGalleryCardEditor extends HTMLElement {
         <!-- PREVIEW HEIGHT -->
         <div class="row">
           <div class="lbl">Preview height</div>
-          <div class="desc">Height of the preview area (px)</div>
+          <div class="desc">Height of the preview area (px).</div>
           <input class="input" id="height"
             type="number"
             value="${height}" />
@@ -143,7 +140,7 @@ class CameraGalleryCardEditor extends HTMLElement {
         <!-- TIMESTAMP POSITION -->
         <div class="row">
           <div class="lbl">Timestamp position</div>
-          <div class="desc">Position of the date/time bar</div>
+          <div class="desc">Position of the date/time bar.</div>
           <div class="segwrap">
             <button class="seg ${tsPos === "top" ? "on" : ""}" data-pos="top">Top</button>
             <button class="seg ${tsPos === "bottom" ? "on" : ""}" data-pos="bottom">Bottom</button>
