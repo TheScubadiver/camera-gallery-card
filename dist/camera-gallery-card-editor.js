@@ -43,7 +43,7 @@ class CameraGalleryCardEditor extends HTMLElement {
     const height = Number(c.preview_height) || 320;
     const thumbSize = Number(c.thumb_size) || 140;
     const tsPos = String(c.bar_position || "top");
-    const shellCommand = String(c.shell_command || "shell_command.delete");
+    const shellCommand = String(c.shell_command || "");
 
     this.shadowRoot.innerHTML = `
       <style>
