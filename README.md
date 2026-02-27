@@ -3,7 +3,7 @@
 A lightweight, swipeable media gallery card for [Home Assistant](https://www.home-assistant.io/) Lovelace.
 Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by date, with day-by-day navigation, bulk selection, download, and delete support.
 
-> **Current version:** 1.0.2
+> **Current version:** 1.0.0
 
 ---
 
@@ -15,7 +15,6 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 - ✅ Bulk select & delete mode
 - ⬇️ One-tap download for any file
 - 🕒 Configurable timestamp bar (top / bottom / hidden)
-- 🌍 Multi-language support (English, Dutch, German, French)
 - 🎨 Visual editor — no YAML needed
 - 📱 Fully responsive, touch-friendly design
 
