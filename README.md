@@ -5,7 +5,7 @@ Browse doorbell snapshots and recordings in a clean timeline view, filter by day
 
 ---
 
-## Features
+## - Features
 
 - Timeline-based media browsing
 - Instant preview of images and videos
@@ -19,7 +19,7 @@ Browse doorbell snapshots and recordings in a clean timeline view, filter by day
 
 ---
 
-## Preview
+## - Preview
 
 The card displays:
 
@@ -32,7 +32,7 @@ Everything is optimized for speed and smooth interaction.
 
 ---
 
-## Installation
+## - Installation
 
 1. Open **HACS → Frontend**
 2. Click **⋮ → Custom repositories**
@@ -44,7 +44,7 @@ Everything is optimized for speed and smooth interaction.
 
 ---
 
-## Example Configuration
+## - Example Configuration
 
 ```yaml
 type: custom:camera-gallery-card
@@ -58,7 +58,7 @@ thumbs_count: 12
 thumb_size: 72
 ```
 
-## File Sensor Setup
+## - File Sensor Setup
 
 The card requires a **file sensor** that scans a directory and exposes the file list as an attribute.
 This sensor is provided by a custom integration that you need to install first.
