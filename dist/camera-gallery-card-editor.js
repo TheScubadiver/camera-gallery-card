@@ -105,17 +105,17 @@ class CameraGalleryCardEditor extends HTMLElement {
           </div>
           <input class="input" id="entity"
             type="text"
-            placeholder="example: sensor.deurbel_gallery"
+            placeholder=""
             value="${fileSensor}" />
         </div>
-
+        
         <!-- SHELL COMMAND -->
         <div class="row">
           <div class="lbl">Shell command</div>
           <div class="desc">Service to call for deletion (domain.service).</div>
           <input class="input" id="shell"
             type="text"
-            placeholder="example: shell_command.delete"
+            placeholder=""
             value="${shellCommand}" />
         </div>
 
