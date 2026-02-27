@@ -1,9 +1,36 @@
 /**
  * Camera Gallery Card
- * Version: 1.0.0
+ * Version: 1.0.2
+ *
+ * A media gallery card for Home Assistant.
+ * - Image & video preview
+ * - Swipe navigation
+ * - Day filtering
+ * - Timeline thumbnails
+ * - Bulk select & delete (optional)
+ * - Download support
+ *
+ * Lovelace config:
+ *  entity: required (sensor with fileList attribute)
+ *  preview_height: number (px)
+ *  bar_position: "top" | "bottom" | "hidden"
+ *  thumb_size: number (px)
+ *
+ * Delete (optional):
+ *  allow_delete: boolean (default true)
+ *  allow_bulk_delete: boolean (default true)
+ *
+ *  delete_service: "domain.service" (default "shell_command.delete")
+ *  shell_command: "domain.service" (alias for delete_service)
+ *
+ *  delete_prefix: string path prefix allowed for deletion (default "/config/www/")
+ *  media_path: string path prefix allowed for deletion (alias for delete_prefix)
+ *
+ * Author: TheScubaDiver
+ * License: MIT
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.0.2";
 
 // -------- HARD CODED SETTINGS --------
 const ATTR_NAME = "fileList";
