@@ -29,7 +29,6 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 - ✅ Bulk select & delete mode
 - ⬇️ One-tap download for any file
 - 🕒 Configurable timestamp bar (top / bottom / hidden)
-- 🌍 Multi-language support (English, Dutch, German, French)
 - 🎨 Visual editor — no YAML needed
 - 📱 Fully responsive, touch-friendly design
 
@@ -71,7 +70,11 @@ Or install manually:
 - **HACS:** Search for **Files in a Folder** in the Integrations tab and install it.
 - **Manual:** Copy the `files` folder from [this repository](https://github.com/TarheelGrad1998/files) to your `/config/custom_components/` directory.
 
-After installing, restart Home Assistant.
+After downloading, you still need to add the integration:
+
+1. Restart Home Assistant.
+2. Go to **Settings → Devices & Services → Add Integration**.
+3. Search for **Files in a Folder** and follow the setup steps.
 
 ### 2. Create the sensor
 
