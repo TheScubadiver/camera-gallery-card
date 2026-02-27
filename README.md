@@ -3,8 +3,12 @@
 A lightweight, swipeable media gallery card for [Home Assistant](https://www.home-assistant.io/) Lovelace.
 Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by date, with day-by-day navigation, bulk selection, download, and delete support.
 
-<img width="508" height="664" alt="Scherm­afbeelding 2026-02-27 om 20 48 34" src="https://github.com/user-attachments/assets/49a8f360-185a-4e8d-bd4d-3ae464a2ac1e" />
-<img width="499" height="739" src="https://github.com/user-attachments/assets/b62eb219-43fc-4238-af55-20d5ddf746ba" />
+<table>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/49a8f360-185a-4e8d-bd4d-3ae464a2ac1e" width="280" /></td>
+    <td><img src="https://github.com/user-attachments/assets/b62eb219-43fc-4238-af55-20d5ddf746ba" width="280" /></td>
+  </tr>
+</table>
 
 > **Current version:** 1.0.0
 
