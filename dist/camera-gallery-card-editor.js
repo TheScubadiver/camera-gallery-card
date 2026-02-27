@@ -1,12 +1,15 @@
 /* camera-gallery-card-editor.js
- * v1.0.5
+ * v1.0.6
+ * - FIX: shell_command input shows shell_command OR delete_service (alias)
+ * - FIX: clearing shell_command removes BOTH shell_command + delete_service (prevents "zombie" values)
+ * - FIX: setting shell_command writes BOTH keys for consistent alias behavior
  * - file sensor + shell_command moved to top
  * - preview_height
  * - thumb_size
  * - bar_position
  */
 
-console.warn("CAMERA GALLERY EDITOR LOADED v1.0.5");
+console.warn("CAMERA GALLERY EDITOR LOADED v1.0.6");
 
 class CameraGalleryCardEditor extends HTMLElement {
   constructor() {
@@ -43,7 +46,9 @@ class CameraGalleryCardEditor extends HTMLElement {
     const height = Number(c.preview_height) || 320;
     const thumbSize = Number(c.thumb_size) || 140;
     const tsPos = String(c.bar_position || "top");
-    const shellCommand = String(c.shell_command || "");
+
+    // ✅ Alias-aware: show shell_command if set, else delete_service
+    const shellCommand = String(c.shell_command || c.delete_service || "");
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -157,8 +162,25 @@ class CameraGalleryCardEditor extends HTMLElement {
       this._set("entity", e.target.value.trim());
     });
 
+    // ✅ Alias-proof shell input:
+    // - if empty => remove BOTH keys (prevents old HA stored values from reappearing)
+    // - if filled => write BOTH keys (keeps alias consistent)
     $("shell")?.addEventListener("change", (e) => {
-      this._set("shell_command", e.target.value.trim());
+      const v = String(e.target.value || "").trim();
+
+      if (!v) {
+        const next = { ...this._config };
+        delete next.shell_command;
+        delete next.delete_service;
+        this._config = next;
+        this._fire();
+        this._render();
+        return;
+      }
+
+      this._config = { ...this._config, shell_command: v, delete_service: v };
+      this._fire();
+      this._render();
     });
 
     $("height")?.addEventListener("change", (e) => {
