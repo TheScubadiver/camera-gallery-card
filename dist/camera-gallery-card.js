@@ -1,33 +1,6 @@
 /**
  * Camera Gallery Card
- * Version: 1.0.2
- *
- * A media gallery card for Home Assistant.
- * - Image & video preview
- * - Swipe navigation
- * - Day filtering
- * - Timeline thumbnails
- * - Bulk select & delete (optional)
- * - Download support
- *
- * Lovelace config:
- *  entity: required (sensor with fileList attribute)
- *  preview_height: number (px)
- *  bar_position: "top" | "bottom" | "hidden"
- *  thumb_size: number (px)
- *
- * Delete (optional):
- *  allow_delete: boolean (default true)
- *  allow_bulk_delete: boolean (default true)
- *
- *  delete_service: "domain.service" (default "shell_command.delete")
- *  shell_command: "domain.service" (alias for delete_service)
- *
- *  delete_prefix: string path prefix allowed for deletion (default "/config/www/")
- *  media_path: string path prefix allowed for deletion (alias for delete_prefix)
- *
- * Author: TheScubaDiver
- * License: MIT
+ * Version: 1.0.0
  */
 
 const CARD_VERSION = "1.0.2";
@@ -857,7 +830,7 @@ class CameraGalleryCard extends LitElement {
         flex:0 0 auto; -webkit-tap-highlight-color:transparent;
         padding:0; line-height:0; box-sizing:border-box; border:0;
       }
-      .bulkbtn.on { background:#ffc0cb; border-color:rgba(255,255,255,0.18); color:rgba(255,255,255,0.98); }
+      .bulkbtn.on { background:#ffffff; border-color:rgba(255,255,255,0.18); color:#000000; }
       .bulkbtn ha-icon {
         --ha-icon-size:calc(var(--bsize)*0.55); --mdc-icon-size:var(--ha-icon-size);
         width:var(--ha-icon-size); height:var(--ha-icon-size); display:block; margin:auto; transform:translateY(-0.5px);
