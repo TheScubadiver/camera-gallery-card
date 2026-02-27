@@ -16,7 +16,6 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 - [Card Configuration](#card-configuration)
 - [Delete Setup](#delete-setup)
 - [File Naming Convention](#file-naming-convention)
-- [Languages](#languages)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
@@ -30,7 +29,6 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 - ✅ Bulk select & delete mode
 - ⬇️ One-tap download for any file
 - 🕒 Configurable timestamp bar (top / bottom / hidden)
-- 🌍 Multi-language support (English, Dutch, German, French)
 - 🎨 Visual editor — no YAML needed
 - 📱 Fully responsive, touch-friendly design
 
@@ -225,21 +223,6 @@ YYYYMMDD_HHMMSS.mp4
 - `20250227_090000.mp4` → February 27, 2025 at 09:00:00
 
 If filenames do not contain a date pattern, the card still works but day filtering and timestamps will not be available.
-
----
-
-## Languages
-
-The card automatically detects your Home Assistant language setting and supports:
-
-| Language | Code |
-|----------|------|
-| English | `en` |
-| Dutch | `nl` |
-| German | `de` |
-| French | `fr` |
-
-If your language is not listed, the card falls back to English.
 
 ---
 
