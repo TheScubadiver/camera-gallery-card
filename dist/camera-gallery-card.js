@@ -1,35 +1,6 @@
 /**
  * Camera Gallery Card
- * Version: 1.0.3
- *
- * A media gallery card for Home Assistant.
- * - Image & video preview
- * - Swipe navigation
- * - Day filtering
- * - Timeline thumbnails
- * - Bulk select & delete
- * - Download support
- *
- * Lovelace config:
- *  entity: required (sensor with fileList attribute)
- *  delete_service: REQUIRED "domain.service"
- *  preview_height: number (px)
- *  bar_position: "top" | "bottom" | "hidden"
- *  thumb_size: number (px)
- *
- * Delete (optional toggles):
- *  allow_delete: boolean (default true)
- *  allow_bulk_delete: boolean (default true)
- *  delete_confirm: boolean (default true)
- *
- * Legacy:
- *  shell_command: "domain.service" (read-only fallback for delete_service)
- *
- * Safety:
- *  Deletion is only allowed within /config/www/ (hardcoded safety prefix).
- *
- * Author: TheScubaDiver
- * License: MIT
+ * Version: 1.0.0
  */
 
 const CARD_VERSION = "1.0.3";
@@ -54,6 +25,9 @@ const DEFAULT_DELETE_SERVICE = "";
 
 // ✅ hard safety prefix (NOT configurable)
 const DEFAULT_DELETE_PREFIX = "/config/www/"; // only allow deleting within www by default
+
+// ✅ bar opacity default (0-100)
+const DEFAULT_BAR_OPACITY = 45;
 
 const STYLE = {
   card_background: "rgba(255,255,255,0.06)",
@@ -129,6 +103,9 @@ class CameraGalleryCard extends LitElement {
       bar_position: "top",
       thumb_size: 140,
 
+      // ✅ new
+      bar_opacity: DEFAULT_BAR_OPACITY,
+
       allow_delete: DEFAULT_ALLOW_DELETE,
       allow_bulk_delete: DEFAULT_ALLOW_BULK_DELETE,
       delete_confirm: DEFAULT_DELETE_CONFIRM,
@@ -153,6 +130,15 @@ class CameraGalleryCard extends LitElement {
     return this._hass;
   }
 
+  // ✅ NEW: force thumbs scroller back to start
+  _resetThumbScrollToStart() {
+    requestAnimationFrame(() => {
+      const wrap = this.renderRoot?.querySelector(".tthumbs");
+      if (!wrap) return;
+      wrap.scrollLeft = 0;
+    });
+  }
+
   // hardcoded safety prefix normalizer
   _normPrefixHardcoded() {
     const lead = DEFAULT_DELETE_PREFIX.startsWith("/") ? DEFAULT_DELETE_PREFIX : "/" + DEFAULT_DELETE_PREFIX;
@@ -163,9 +149,10 @@ class CameraGalleryCard extends LitElement {
   setConfig(config) {
     if (!config?.entity) throw new Error("camera-gallery-card: 'entity' is required");
 
+    const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
     const num = (v, d) => {
       if (v === null || v === undefined) return d;
-      const n = Number(String(v).trim().replace("px", ""));
+      const n = Number(String(v).trim().replace("px", "").replace("%", ""));
       return Number.isFinite(n) ? n : d;
     };
 
@@ -193,11 +180,17 @@ class CameraGalleryCard extends LitElement {
 
     const delete_confirm = config.delete_confirm !== undefined ? !!config.delete_confirm : DEFAULT_DELETE_CONFIRM;
 
+    // ✅ new: bar opacity (0-100)
+    const bar_opacity = clamp(num(config.bar_opacity, DEFAULT_BAR_OPACITY), 0, 100);
+
     this.config = {
       entity: config.entity,
       preview_height: Number(config.preview_height) || 320,
       bar_position,
       thumb_size,
+
+      // ✅ new
+      bar_opacity,
 
       allow_delete,
       allow_bulk_delete,
@@ -216,11 +209,20 @@ class CameraGalleryCard extends LitElement {
     if (!this._selectedSet) this._selectedSet = new Set();
   }
 
-  updated() {
+  updated(changedProps) {
+    // 1️⃣ Scroll selected thumb into view
     if (this._pendingScrollToI != null) {
       const i = this._pendingScrollToI;
       this._pendingScrollToI = null;
       this._scrollThumbIntoView(i);
+    }
+
+    // 2️⃣ Alleen resetten als dag of filter écht veranderd is
+    const dayChanged = changedProps.has("_selectedDay");
+    const filterChanged = changedProps.has("_filterAll");
+
+    if (dayChanged || filterChanged) {
+      this._resetThumbScrollToStart();
     }
   }
 
@@ -228,14 +230,18 @@ class CameraGalleryCard extends LitElement {
     requestAnimationFrame(() => {
       const wrap = this.renderRoot?.querySelector(".tthumbs");
       if (!wrap) return;
+
       const btn = wrap.querySelector(`button.tthumb[data-i="${filteredIndexI}"]`);
       if (!btn) return;
-      const left = btn.offsetLeft - wrap.clientWidth / 2 + btn.clientWidth / 2;
-      try {
-        wrap.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
-      } catch (_) {
-        btn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-      }
+
+      const max = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+      const target = Math.min(
+        max,
+        Math.max(0, btn.offsetLeft - wrap.clientWidth / 2 + btn.clientWidth / 2)
+      );
+
+      // ✅ 1 duidelijke actie – geen smooth, geen dubbele scroll
+      wrap.scrollLeft = target;
     });
   }
 
@@ -517,6 +523,10 @@ class CameraGalleryCard extends LitElement {
     this._scrubMinute = NaN;
     this._pendingScrollToI = 0;
     this._exitSelectMode();
+
+    // ✅ ensure start from first thumb visually
+    this._resetThumbScrollToStart();
+
     this.requestUpdate();
   }
 
@@ -601,6 +611,10 @@ class CameraGalleryCard extends LitElement {
           this._scrubMinute = NaN;
           this._pendingScrollToI = 0;
           this._exitSelectMode();
+
+          // ✅ ensure start from first thumb visually
+          this._resetThumbScrollToStart();
+
           this.requestUpdate();
           return html``;
         }
@@ -646,6 +660,9 @@ class CameraGalleryCard extends LitElement {
       --uiBg:rgba(255,255,255,0.06); --uiStroke:rgba(255,255,255,0.10);
       --uiTxt:rgba(255,255,255,0.92); --uiTxt2:rgba(255,255,255,0.78);
       --uiDis:rgba(255,255,255,0.35);
+
+      /* ✅ new */
+      --barOpacity:${this.config.bar_opacity};
     `;
 
     const sp = this._serviceParts();
@@ -703,6 +720,10 @@ class CameraGalleryCard extends LitElement {
                   this._scrubMinute = NaN;
                   this._pendingScrollToI = 0;
                   this._exitSelectMode();
+
+                  // ✅ ensure start from first thumb visually
+                  this._resetThumbScrollToStart();
+
                   this.requestUpdate();
                 }}
                 title="Today"
@@ -714,13 +735,25 @@ class CameraGalleryCard extends LitElement {
             </div>
 
             <div class="datepill" role="group" aria-label="Day navigation">
-              <button class="iconbtn" ?disabled=${!canPrev} @click=${() => this._stepDay(+1, days, currentForNav)} aria-label="Previous day" title="Previous day">
+              <button
+                class="iconbtn"
+                ?disabled=${!canPrev}
+                @click=${() => this._stepDay(+1, days, currentForNav)}
+                aria-label="Previous day"
+                title="Previous day"
+              >
                 <ha-icon icon="mdi:chevron-left"></ha-icon>
               </button>
               <div class="dateinfo" title="Selected day">
                 <span class="txt">${isAll ? "All" : currentForNav ? this._formatDay(currentForNav) : "—"}</span>
               </div>
-              <button class="iconbtn" ?disabled=${!canNext} @click=${() => this._stepDay(-1, days, currentForNav)} aria-label="Next day" title="Next day">
+              <button
+                class="iconbtn"
+                ?disabled=${!canNext}
+                @click=${() => this._stepDay(-1, days, currentForNav)}
+                aria-label="Next day"
+                title="Next day"
+              >
                 <ha-icon icon="mdi:chevron-right"></ha-icon>
               </button>
             </div>
@@ -733,7 +766,18 @@ class CameraGalleryCard extends LitElement {
                     @click=${(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      this._toggleSelectMode();
+                      e.currentTarget.blur();
+
+                      if (this._selectMode) {
+                        this._toggleSelected(it.src);
+                        return;
+                      }
+
+                      this._selectedIndex = it.i;
+                      this._scrubMinute = NaN;
+                      this._pendingScrollToI = it.i;
+                      this.requestUpdate();
+                      this._playPreviewIfVideo();
                     }}
                   >
                     <ha-icon icon="mdi:checkbox-multiple-marked-outline"></ha-icon>
@@ -858,21 +902,39 @@ class CameraGalleryCard extends LitElement {
 
       .preview {
         position:relative;
-        overflow:hidden;
+        -webkit-mask-image: -webkit-radial-gradient(white, black);
+        transform: translateZ(0);
         background:var(--previewBg);
         width:100%;
-        border-radius: 18px;
+        border-radius: var(--r);
+        overflow: hidden;
       }
+        
       .pimg { width:100%; height:100%; object-fit:cover; display:block; }
 
       .tsbar {
         position:absolute; left:0; right:0; height:40px; padding:0 10px 0 12px;
-        background:rgba(0,0,0,0.45); color:rgba(255,255,255,0.92);
+
+        /* alpha */
+        background: rgba(0,0,0, calc(var(--barOpacity, 45) / 100));
+
+        color:rgba(255,255,255,0.92);
         font-size:12px; font-weight:700;
         display:flex; align-items:center; justify-content:space-between;
-        backdrop-filter:blur(8px); box-sizing:border-box;
+        box-sizing:border-box;
         pointer-events:none; z-index:2;
+
+        /* ✅ blur alleen als opacity > 0 */
+        backdrop-filter: blur(calc(8px * min(1, var(--barOpacity, 45))));
+        -webkit-backdrop-filter: blur(calc(8px * min(1, var(--barOpacity, 45))));
       }
+
+      /* ✅ bij 0: geen balk, geen blur, geen layout “ghost” */
+      .tsbar[style*="--barOpacity:0"], 
+      .tsbar[style*="--barOpacity: 0"] {
+        display: none !important;
+      }
+
       .tsbar.top { top:0; }
       .tsbar.bottom { bottom:0; }
       .tsleft { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -940,14 +1002,19 @@ class CameraGalleryCard extends LitElement {
 
       .tthumbs {
         display:flex; align-items:center; gap:var(--tgap,12px);
-        margin-bottom:14px; min-width:0; overflow-x:auto; overflow-y:hidden;
-        -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;
+        margin-bottom:0px; min-width:0; overflow-x:auto; overflow-y:hidden;
+        -webkit-overflow-scrolling:touch;
         padding-bottom:2px; scrollbar-width:none; -ms-overflow-style:none;
       }
       .tthumbs::-webkit-scrollbar { display:none; }
 
+      .tthumb:focus {
+        outline: none;
+      }
+
       .tthumb {
         border:0; padding:0; overflow:hidden; background:rgba(255,255,255,0.06);
+        outline: none;
         cursor:pointer; position:relative; flex:0 0 auto;
         scroll-snap-align:start; box-shadow:0 4px 10px rgba(0,0,0,0.25);
       }
