@@ -763,11 +763,22 @@ class CameraGalleryCard extends LitElement {
                   <button
                     class="bulkbtn ${this._selectMode ? "on" : ""}"
                     title=${this._selectMode ? "Stop selecting" : "Select"}
+                    @pointerdown=${(e) => {
+                      // voorkom dat er iets anders (swipe/ha-card) mee aan de haal gaat
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.stopImmediatePropagation?.();
+                    }}
                     @click=${(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      e.stopImmediatePropagation?.();
                       e.currentTarget.blur();
-                      this._toggleSelectMode();
+
+                      // ultra-direct: flip state, leeg selectie, force rerender
+                      this._selectMode = !this._selectMode;
+                      this._selectedSet?.clear?.();
+                      this.requestUpdate();
                     }}
                   >
                     <ha-icon icon="mdi:checkbox-multiple-marked-outline"></ha-icon>
