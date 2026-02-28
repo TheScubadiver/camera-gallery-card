@@ -10,7 +10,7 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
   </tr>
 </table>
 
-> **Current version:** 1.0.3
+> **Current version:** 1.0.0
 
 ---
 
