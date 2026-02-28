@@ -69,36 +69,74 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 <a id="file-sensor-setup"></a>
 ## File Sensor Setup
 
-The card requires a **file sensor** that scans a directory and exposes the file list as an attribute.
+The card requires a **file sensor** that scans a directory and exposes the file list as an attribute (default: `fileList`).
+
+This is commonly done with the **Files in a Folder** integration:
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=TarheelGrad1998&repository=files&category=integration)
+
+Repository: https://github.com/TarheelGrad1998/files
+
+### Example sensor (generic)
 
 Add the following to your `configuration.yaml`:
 
 ```yaml
 sensor:
   - platform: files
-    folder: /config/www/your_camera_folder
-    name: your_camera_gallery
+    folder: /config/www/<your_media_folder>
+    name: <your_gallery_sensor_name>
     sort: date
 ```
+
+Notes:
+
+- The `folder` **must be inside** `/config/www/` so Home Assistant can serve the files via `/local/`.
+- The created entity will be `sensor.<your_gallery_sensor_name>`.
+
+After creating the sensor, restart Home Assistant and verify in **Developer Tools → States** that the entity has a `fileList` attribute with file paths.
 
 ---
 
 <a id="automation-example"></a>
 ## Automation Example
 
+This is just an example to generate files in the correct naming format.  
+Replace the entities and folder with your own.
+
+### Snapshot example
+
 ```yaml
 automation:
-  - alias: "Camera snapshot on motion"
+  - alias: "Save snapshot on motion (example)"
     trigger:
       - platform: state
-        entity_id: binary_sensor.motion
+        entity_id: <your_motion_entity>
         to: "on"
     action:
       - service: camera.snapshot
         target:
-          entity_id: camera.doorbell
+          entity_id: <your_camera_entity>
         data:
-          filename: "/config/www/doorbell/{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg"
+          filename: "/config/www/<your_media_folder>/camera{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg"
+```
+
+### Video clip example (if supported by your camera integration)
+
+```yaml
+automation:
+  - alias: "Save clip on motion (example)"
+    trigger:
+      - platform: state
+        entity_id: <your_motion_entity>
+        to: "on"
+    action:
+      - service: camera.record
+        target:
+          entity_id: <your_camera_entity>
+        data:
+          filename: "/config/www/<your_media_folder>/camera{{ now().strftime('%Y%m%d_%H%M%S') }}.mp4"
+          duration: 10
 ```
 
 ---
@@ -106,17 +144,16 @@ automation:
 <a id="card-configuration"></a>
 ## Card Configuration
 
+### Example (generic)
+
 ```yaml
 type: custom:camera-gallery-card
-entity: sensor.doorbell_gallery
-delete_service: shell_command.delete
+entity: sensor.<your_file_sensor_entity>
+delete_service: shell_command.<your_delete_service_name>
 preview_height: 320
 thumb_size: 140
 bar_position: top
 bar_opacity: 45
-allow_delete: true
-allow_bulk_delete: true
-delete_confirm: true
 ```
 
 ---
@@ -124,26 +161,99 @@ delete_confirm: true
 <a id="delete-setup"></a>
 ## Delete Setup
 
+The gallery deletes files by calling a Home Assistant service.  
+This service must be defined in your `configuration.yaml`.
+
+### 1️⃣ Add a shell command (generic)
+
+Add this to your `configuration.yaml`:
+
 ```yaml
 shell_command:
-  delete: "rm -f '{{ path }}'"
+  <your_delete_service_name>: "rm -f '{{ path }}'"
 ```
 
-Use in the card:
+### What does this do?
+
+- `rm -f` permanently removes a file
+- `{{ path }}` is a variable passed by the card
+- The card sends the full file path to Home Assistant
+- Home Assistant inserts that path into this command
+
+Example of what actually runs:
+
+```
+rm -f '/config/www/<your_media_folder>/20250227_143022.mp4'
+```
+
+Restart Home Assistant after adding the shell command.
+
+---
+
+### 2️⃣ Configure the card
+
+In your card configuration:
 
 ```yaml
-delete_service: shell_command.delete
+delete_service: shell_command.<your_delete_service_name>
 ```
+
+This tells the card which Home Assistant service should be called when you press the delete button.
+
+---
+
+### 🔒 Important Safety Note
+
+The card only allows deleting files inside:
+
+```
+/config/www/
+```
+
+This prevents accidental deletion of system files.
+
+⚠️ Files are permanently deleted.  
+There is no recycle bin.
 
 ---
 
 <a id="file-naming-convention"></a>
 ## File Naming Convention
 
+The card extracts the date and time from filenames to enable:
+
+- Day filtering
+- Timestamp display
+- Correct sorting
+
+Your files should contain this format:
+
+```
+YYYYMMDD_HHMMSS
+```
+
+Both of these are supported:
+
 ```
 YYYYMMDD-HHMMSS.jpg
 YYYYMMDD_HHMMSS.mp4
 ```
+
+### Example
+
+```
+20250227_143022.jpg
+```
+
+This is interpreted as:
+
+- Date: 2025-02-27  
+- Time: 14:30:22  
+
+If your filename does not contain this pattern:
+
+- The file will still display
+- But date filtering and timestamps may not work
 
 ---
 
@@ -152,13 +262,20 @@ YYYYMMDD_HHMMSS.mp4
 
 **Card not showing**
 
-- Verify resource is added correctly
-- Hard refresh browser
+- Verify the resource is added correctly
+- Hard refresh your browser
 
 **No media found**
 
-- Verify sensor exists
-- Confirm `fileList` contains file paths
+- Verify the file sensor entity exists
+- Confirm the `fileList` attribute contains file paths
+- Confirm files are stored under `/config/www/`
+
+**Delete not working**
+
+- Verify your service exists in **Developer Tools → Services**
+- Confirm the files are under `/config/www/`
+- Check Home Assistant logs for permission issues
 
 ---
 
