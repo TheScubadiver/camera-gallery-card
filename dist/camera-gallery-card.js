@@ -767,17 +767,7 @@ class CameraGalleryCard extends LitElement {
                       e.preventDefault();
                       e.stopPropagation();
                       e.currentTarget.blur();
-
-                      if (this._selectMode) {
-                        this._toggleSelected(it.src);
-                        return;
-                      }
-
-                      this._selectedIndex = it.i;
-                      this._scrubMinute = NaN;
-                      this._pendingScrollToI = it.i;
-                      this.requestUpdate();
-                      this._playPreviewIfVideo();
+                      this._toggleSelectMode();
                     }}
                   >
                     <ha-icon icon="mdi:checkbox-multiple-marked-outline"></ha-icon>
