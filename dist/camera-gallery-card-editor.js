@@ -1,16 +1,8 @@
 /* camera-gallery-card-editor.js
- * v1.0.7
- * - REQUIRED: delete_service (domain.service)
- * - MIGRATE: reads legacy shell_command but writes ONLY delete_service
- * - CLEAN: removes shell_command from config on every save/change (prevents zombies)
- * - UI: invalid highlight when delete_service missing/invalid
- * - file sensor + delete service moved to top
- * - preview_height
- * - thumb_size
- * - bar_position
+ * v1.0.0
  */
 
-console.warn("CAMERA GALLERY EDITOR LOADED v1.0.7");
+console.warn("CAMERA GALLERY EDITOR LOADED v1.0.0");
 
 class CameraGalleryCardEditor extends HTMLElement {
   constructor() {
@@ -59,6 +51,15 @@ class CameraGalleryCardEditor extends HTMLElement {
     // ✅ REQUIRED key with legacy fallback (read only)
     const deleteService = String(c.delete_service || c.shell_command || "");
     const deleteOk = /^[a-z0-9_]+\.[a-z0-9_]+$/i.test(deleteService);
+
+    // ✅ NEW: bar opacity (0-100)
+    const barOpacity = (() => {
+      const n = Number(c.bar_opacity);
+      if (!Number.isFinite(n)) return 45;
+      return Math.min(100, Math.max(0, n));
+    })();
+
+    const barDisabled = tsPos === "hidden";
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -140,6 +141,34 @@ class CameraGalleryCardEditor extends HTMLElement {
           border-color:transparent;
         }
 
+        /* ===== Slider row ===== */
+        .row.disabled {
+          opacity: 0.55;
+        }
+
+        .sliderline{
+          display:flex;
+          align-items:center;
+          gap:10px;
+        }
+
+        .slider {
+          width:100%;
+          accent-color: #ffffff; /* simple + ok in modern browsers */
+        }
+
+        .pillval{
+          flex: 0 0 auto;
+          min-width: 52px;
+          text-align: center;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.10);
+          border: 1px solid rgba(255,255,255,0.10);
+          font-size: 12px;
+          font-weight: 900;
+        }
+
         code { font-weight:900; }
       </style>
 
@@ -170,7 +199,7 @@ class CameraGalleryCardEditor extends HTMLElement {
         <div class="row">
           <div class="lbl">Delete service</div>
           <div class="desc">
-            Service to call for deletion
+            Service to call for deletion (<code>domain.service</code>)
           </div>
           <input
             class="input ${deleteOk ? "" : "invalid"}"
@@ -233,6 +262,25 @@ class CameraGalleryCardEditor extends HTMLElement {
           </div>
         </div>
 
+        <!-- BAR OPACITY (SLIDER) -->
+        <div class="row ${barDisabled ? "disabled" : ""}">
+          <div class="lbl">Bar opacity</div>
+          <div class="desc">Opacity of the timestamp bar (0–100)</div>
+          <div class="sliderline">
+            <input
+              class="slider"
+              id="barop"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="${barOpacity}"
+              ${barDisabled ? "disabled" : ""}
+            />
+            <div class="pillval" id="baropVal">${barOpacity}%</div>
+          </div>
+        </div>
+
       </div>
     `;
 
@@ -242,10 +290,6 @@ class CameraGalleryCardEditor extends HTMLElement {
       this._set("entity", String(e.target.value || "").trim());
     });
 
-    // ✅ Required delete_service:
-    // - always remove legacy shell_command
-    // - write ONLY delete_service
-    // - if empty -> remove delete_service (keeps invalid highlight; card should error if required)
     $("delservice")?.addEventListener("change", (e) => {
       const v = String(e.target.value || "").trim();
 
@@ -275,6 +319,19 @@ class CameraGalleryCardEditor extends HTMLElement {
     $("thumb")?.addEventListener("change", (e) => {
       this._set("thumb_size", Number(e.target.value) || 140);
     });
+
+    const barop = $("barop");
+    const baropVal = $("baropVal");
+    if (barop && baropVal) {
+      barop.addEventListener("input", (e) => {
+        const v = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+        baropVal.textContent = `${v}%`;
+      });
+      barop.addEventListener("change", (e) => {
+        const v = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+        this._set("bar_opacity", v);
+      });
+    }
 
     this.shadowRoot.querySelectorAll(".seg").forEach((btn) => {
       btn.addEventListener("click", () => {
