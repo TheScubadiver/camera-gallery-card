@@ -3,7 +3,7 @@
  * Version: 1.0.0
  */
 
-const CARD_VERSION = "1.0.3";
+const CARD_VERSION = "1.0.0";
 
 // -------- HARD CODED SETTINGS --------
 const ATTR_NAME = "fileList";
