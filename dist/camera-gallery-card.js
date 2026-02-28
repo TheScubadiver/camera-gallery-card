@@ -1,28 +1,29 @@
 /**
  * Camera Gallery Card
- * Version: 1.0.2
+ * Version: 1.0.3
  *
  * A media gallery card for Home Assistant.
  * - Image & video preview
  * - Swipe navigation
  * - Day filtering
  * - Timeline thumbnails
- * - Bulk select & delete (optional)
+ * - Bulk select & delete
  * - Download support
  *
  * Lovelace config:
  *  entity: required (sensor with fileList attribute)
+ *  delete_service: REQUIRED "domain.service"
  *  preview_height: number (px)
  *  bar_position: "top" | "bottom" | "hidden"
  *  thumb_size: number (px)
  *
- * Delete (optional):
+ * Delete (optional toggles):
  *  allow_delete: boolean (default true)
  *  allow_bulk_delete: boolean (default true)
  *  delete_confirm: boolean (default true)
  *
- *  delete_service: "domain.service" (default "")
- *  shell_command: "domain.service" (alias for delete_service)
+ * Legacy:
+ *  shell_command: "domain.service" (read-only fallback for delete_service)
  *
  * Safety:
  *  Deletion is only allowed within /config/www/ (hardcoded safety prefix).
@@ -31,7 +32,7 @@
  * License: MIT
  */
 
-const CARD_VERSION = "1.0.2";
+const CARD_VERSION = "1.0.3";
 
 // -------- HARD CODED SETTINGS --------
 const ATTR_NAME = "fileList";
@@ -48,7 +49,7 @@ const DEFAULT_ALLOW_DELETE = true;
 const DEFAULT_ALLOW_BULK_DELETE = true;
 const DEFAULT_DELETE_CONFIRM = true;
 
-// ✅ no default service shown anywhere — user must configure if they want delete
+// ✅ delete_service is REQUIRED now (no default)
 const DEFAULT_DELETE_SERVICE = "";
 
 // ✅ hard safety prefix (NOT configurable)
@@ -118,21 +119,19 @@ class CameraGalleryCard extends LitElement {
     return document.createElement("camera-gallery-card-editor");
   }
 
+  // ✅ Stub contains only supported keys (no legacy shell_command)
   static getStubConfig() {
     return {
       entity: "",
+      delete_service: "", // REQUIRED
+
       preview_height: 320,
       bar_position: "top",
       thumb_size: 140,
 
-      // delete defaults (optional)
       allow_delete: DEFAULT_ALLOW_DELETE,
       allow_bulk_delete: DEFAULT_ALLOW_BULK_DELETE,
-      delete_service: DEFAULT_DELETE_SERVICE,
       delete_confirm: DEFAULT_DELETE_CONFIRM,
-
-      // alias (optional)
-      shell_command: "",
     };
   }
 
@@ -177,12 +176,20 @@ class CameraGalleryCard extends LitElement {
     const allow_delete = config.allow_delete !== undefined ? !!config.allow_delete : DEFAULT_ALLOW_DELETE;
     const allow_bulk_delete = config.allow_bulk_delete !== undefined ? !!config.allow_bulk_delete : DEFAULT_ALLOW_BULK_DELETE;
 
-    // ALIAS:
-    // - shell_command -> delete_service
+    // ✅ REQUIRED delete_service:
+    // - delete_service wins
+    // - shell_command allowed ONLY as legacy fallback (read-only)
     const delete_service =
-      (config.shell_command && String(config.shell_command).trim()) ||
       (config.delete_service && String(config.delete_service).trim()) ||
+      (config.shell_command && String(config.shell_command).trim()) ||
       DEFAULT_DELETE_SERVICE;
+
+    if (!delete_service) {
+      throw new Error("camera-gallery-card: 'delete_service' is required");
+    }
+    if (!/^[a-z0-9_]+\.[a-z0-9_]+$/i.test(delete_service)) {
+      throw new Error("camera-gallery-card: 'delete_service' must be 'domain.service'");
+    }
 
     const delete_confirm = config.delete_confirm !== undefined ? !!config.delete_confirm : DEFAULT_DELETE_CONFIRM;
 
@@ -641,8 +648,9 @@ class CameraGalleryCard extends LitElement {
       --uiDis:rgba(255,255,255,0.35);
     `;
 
-    const canDelete = !!this.config?.allow_delete;
-    const canBulkDelete = !!this.config?.allow_bulk_delete;
+    const sp = this._serviceParts();
+    const canDelete = !!this.config?.allow_delete && !!sp;
+    const canBulkDelete = !!this.config?.allow_bulk_delete && !!sp;
     const showBulkToggle = canDelete && canBulkDelete && (thumbs?.length ?? 0) > 0;
 
     const tsPosClass =
@@ -772,6 +780,7 @@ class CameraGalleryCard extends LitElement {
                         class="bulkicon bulkdelete"
                         title="Delete"
                         aria-label="Delete"
+                        ?disabled=${!canDelete}
                         @click=${async (e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -973,7 +982,9 @@ class CameraGalleryCard extends LitElement {
         --asize:40px; width:var(--asize); height:var(--asize); border-radius:999px;
         display:grid; place-items:center; cursor:pointer;
         -webkit-tap-highlight-color:transparent; padding:0; line-height:0; box-sizing:border-box;
+        opacity:1;
       }
+      .bulkicon[disabled] { opacity:0.45; cursor:default; }
       .bulkcancel { border:0; background:#2e7d32; color:rgba(255,255,255,0.98); }
       .bulkdelete { border:0; background:#ff0000; color:rgba(255,255,255,0.98); }
       .bulkicon ha-icon {
