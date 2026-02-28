@@ -1,15 +1,16 @@
 /* camera-gallery-card-editor.js
- * v1.0.6
- * - FIX: shell_command input shows shell_command OR delete_service (alias)
- * - FIX: clearing shell_command removes BOTH shell_command + delete_service (prevents "zombie" values)
- * - FIX: setting shell_command writes BOTH keys for consistent alias behavior
- * - file sensor + shell_command moved to top
+ * v1.0.7
+ * - REQUIRED: delete_service (domain.service)
+ * - MIGRATE: reads legacy shell_command but writes ONLY delete_service
+ * - CLEAN: removes shell_command from config on every save/change (prevents zombies)
+ * - UI: invalid highlight when delete_service missing/invalid
+ * - file sensor + delete service moved to top
  * - preview_height
  * - thumb_size
  * - bar_position
  */
 
-console.warn("CAMERA GALLERY EDITOR LOADED v1.0.6");
+console.warn("CAMERA GALLERY EDITOR LOADED v1.0.7");
 
 class CameraGalleryCardEditor extends HTMLElement {
   constructor() {
@@ -35,6 +36,14 @@ class CameraGalleryCardEditor extends HTMLElement {
 
   _set(key, value) {
     this._config = { ...this._config, [key]: value };
+
+    // legacy cleanup always
+    if (key !== "shell_command" && "shell_command" in this._config) {
+      const next = { ...this._config };
+      delete next.shell_command;
+      this._config = next;
+    }
+
     this._fire();
     this._render();
   }
@@ -47,13 +56,41 @@ class CameraGalleryCardEditor extends HTMLElement {
     const thumbSize = Number(c.thumb_size) || 140;
     const tsPos = String(c.bar_position || "top");
 
-    // ✅ Alias-aware: show shell_command if set, else delete_service
-    const shellCommand = String(c.shell_command || c.delete_service || "");
+    // ✅ REQUIRED key with legacy fallback (read only)
+    const deleteService = String(c.delete_service || c.shell_command || "");
+    const deleteOk = /^[a-z0-9_]+\.[a-z0-9_]+$/i.test(deleteService);
 
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:8px 0; }
         .wrap { display:grid; gap:14px; }
+
+        .input::placeholder{
+          color: rgba(255,255,255,0.45);
+          opacity: 1; /* Safari */
+        }
+        .input::-webkit-input-placeholder{
+          color: rgba(255,255,255,0.45);
+        }
+
+        .numwrap {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .numwrap .input {
+          padding-right: 38px;
+        }
+
+        .suffix {
+          position: absolute;
+          right: 12px;
+          font-size: 10px;
+          font-weight: 500;
+          opacity: 0.40;
+          pointer-events: none;
+        }
 
         .row {
           display:grid;
@@ -80,6 +117,11 @@ class CameraGalleryCardEditor extends HTMLElement {
           outline:none;
         }
 
+        .input.invalid{
+          border-color: rgba(255, 77, 77, 0.85);
+          box-shadow: 0 0 0 2px rgba(255, 77, 77, 0.18);
+        }
+
         .segwrap { display:flex; gap:8px; }
         .seg {
           flex:1;
@@ -97,6 +139,8 @@ class CameraGalleryCardEditor extends HTMLElement {
           color:rgba(0,0,0,0.95);
           border-color:transparent;
         }
+
+        code { font-weight:900; }
       </style>
 
       <div class="wrap">
@@ -105,47 +149,83 @@ class CameraGalleryCardEditor extends HTMLElement {
         <div class="row">
           <div class="lbl">File sensor</div>
           <div class="desc">
-            Sensor entity that contains the <code>fileList</code> attribute.
-            See the GitHub repository for installation instructions.
+            Sensor entity that contains the <code>fileList</code> attribute
           </div>
-          <input class="input" id="entity"
+          <input
+            class="input"
+            id="entity"
             type="text"
-            placeholder=""
-            value="${fileSensor}" />
+            inputmode="text"
+            autocomplete="off"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            enterkeyhint="done"
+            placeholder="example: sensor.gallery_persoon"
+            value="${fileSensor}"
+          />
         </div>
-        
-        <!-- SHELL COMMAND -->
+
+        <!-- DELETE SERVICE (REQUIRED) -->
         <div class="row">
-          <div class="lbl">Shell command</div>
-          <div class="desc">Service to call for deletion (domain.service).</div>
-          <input class="input" id="shell"
+          <div class="lbl">Delete service</div>
+          <div class="desc">
+            Service to call for deletion
+          </div>
+          <input
+            class="input ${deleteOk ? "" : "invalid"}"
+            id="delservice"
             type="text"
-            placeholder=""
-            value="${shellCommand}" />
+            inputmode="text"
+            autocomplete="off"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            enterkeyhint="done"
+            placeholder="example: shell_command.gallery_delete"
+            value="${deleteService}"
+          />
         </div>
 
         <!-- PREVIEW HEIGHT -->
         <div class="row">
           <div class="lbl">Preview height</div>
-          <div class="desc">Height of the preview area (px).</div>
-          <input class="input" id="height"
-            type="number"
-            value="${height}" />
+          <div class="numwrap">
+            <input
+              class="input"
+              id="height"
+              type="number"
+              min="120"
+              step="1"
+              inputmode="numeric"
+              value="${height}"
+            />
+            <span class="suffix">px</span>
+          </div>
         </div>
 
         <!-- THUMB SIZE -->
         <div class="row">
-          <div class="lbl">Thumb size</div>
-          <div class="desc">Thumbnail size (px).</div>
-          <input class="input" id="thumb"
-            type="number"
-            value="${thumbSize}" />
+          <div class="lbl">Thumbnail size</div>
+          <div class="numwrap">
+            <input
+              class="input"
+              id="thumb"
+              type="number"
+              min="40"
+              max="220"
+              step="1"
+              inputmode="numeric"
+              value="${thumbSize}"
+            />
+            <span class="suffix">px</span>
+          </div>
         </div>
 
         <!-- TIMESTAMP POSITION -->
         <div class="row">
           <div class="lbl">Timestamp position</div>
-          <div class="desc">Position of the date/time bar.</div>
+          <div class="desc">Position of the date/time bar</div>
           <div class="segwrap">
             <button class="seg ${tsPos === "top" ? "on" : ""}" data-pos="top">Top</button>
             <button class="seg ${tsPos === "bottom" ? "on" : ""}" data-pos="bottom">Bottom</button>
@@ -159,18 +239,22 @@ class CameraGalleryCardEditor extends HTMLElement {
     const $ = (id) => this.shadowRoot.getElementById(id);
 
     $("entity")?.addEventListener("change", (e) => {
-      this._set("entity", e.target.value.trim());
+      this._set("entity", String(e.target.value || "").trim());
     });
 
-    // ✅ Alias-proof shell input:
-    // - if empty => remove BOTH keys (prevents old HA stored values from reappearing)
-    // - if filled => write BOTH keys (keeps alias consistent)
-    $("shell")?.addEventListener("change", (e) => {
+    // ✅ Required delete_service:
+    // - always remove legacy shell_command
+    // - write ONLY delete_service
+    // - if empty -> remove delete_service (keeps invalid highlight; card should error if required)
+    $("delservice")?.addEventListener("change", (e) => {
       const v = String(e.target.value || "").trim();
 
+      const next = { ...this._config };
+
+      // legacy cleanup
+      delete next.shell_command;
+
       if (!v) {
-        const next = { ...this._config };
-        delete next.shell_command;
         delete next.delete_service;
         this._config = next;
         this._fire();
@@ -178,7 +262,8 @@ class CameraGalleryCardEditor extends HTMLElement {
         return;
       }
 
-      this._config = { ...this._config, shell_command: v, delete_service: v };
+      next.delete_service = v;
+      this._config = next;
       this._fire();
       this._render();
     });
