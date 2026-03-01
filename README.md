@@ -283,3 +283,9 @@ If your filename does not contain this pattern:
 ## License
 
 MIT © [TheScubadiver](https://github.com/TheScubadiver)
+
+## Credits
+Created by **TheScubaDiver**.
+
+Forks are welcome, but **attribution is required** under the MIT License.
+Please keep the LICENSE file and this credits section intact.
