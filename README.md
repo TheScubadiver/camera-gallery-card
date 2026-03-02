@@ -10,7 +10,7 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
   </tr>
 </table>
 
-> **Current version:** 1.0.0
+> **Current version:** 1.1.0
 
 ---
 
@@ -18,6 +18,7 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 
 - [Features](#features)
 - [Installation](#installation)
+- [Source Modes](#source-modes)
 - [File Sensor Setup](#file-sensor-setup)
 - [Automation Example](#automation-example)
 - [Card Configuration](#card-configuration)
@@ -33,13 +34,16 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 ## Features
 
 - 🖼️ Full-width preview with swipe navigation
+- 📍 Configurable preview position (top / bottom)
+- 👆 Optional preview-on-click behavior
 - 🎬 Inline video playback with auto-generated poster thumbnails
 - 📅 Day-by-day filtering with date navigation
-- ✅ Bulk select & delete mode
+- 🔄 Dual source mode (File sensor or Media folder)
+- ✅ Bulk select & delete mode (sensor mode only)
 - ⬇️ One-tap download for any file
 - 🕒 Configurable timestamp bar (top / bottom / hidden)
 - 🔆 Adjustable timestamp bar opacity
-- 🎨 Visual editor — no YAML needed
+- 🎨 Smart visual editor with automatic dropdowns
 - 📱 Fully responsive, touch-friendly design
 
 ---
@@ -67,18 +71,28 @@ Browse `.jpg` snapshots and `.mp4` clips stored on your system — sorted by dat
 
 ---
 
+## Source Modes
+
+The gallery supports two ways of loading media:
+
+### File Sensor Mode
+Uses a `sensor` entity with a `fileList` attribute.  
+This mode supports delete functionality.
+
+### Media Folder Mode
+Loads files directly from Home Assistant’s Media Source browser.  
+Delete functionality is not available in this mode.
+
+---
+
 ## File Sensor Setup
 
 The card requires a **file sensor** that scans a directory and exposes the file list as an attribute (default: `fileList`).
 
-This is commonly done with the **Files in a Folder** integration:
-
-Repository:  
+Commonly done with the **Files in a Folder** integration:  
 https://github.com/TarheelGrad1998/files
 
-### Example sensor (generic)
-
-Add the following to your `configuration.yaml`:
+### Example sensor
 
 ```yaml
 sensor:
@@ -90,131 +104,77 @@ sensor:
 
 **Notes:**
 
-- The `folder` **must be inside** `/config/www/` so Home Assistant can serve the files via `/local/`.
-- The created entity will be `sensor.<your_gallery_sensor_name>`.
-
-After creating the sensor, restart Home Assistant and verify in **Developer Tools → States** that the entity has a `fileList` attribute with file paths.
+- The folder must be inside `/config/www/`
+- The entity will be `sensor.<your_gallery_sensor_name>`
 
 ---
 
 ## Automation Example
 
-This is just an example to generate files in the correct naming format.  
-Replace the entities and folder with your own.
-
-### Snapshot example
+### Snapshot
 
 ```yaml
-automation:
-  - alias: "Save snapshot on motion (example)"
-    trigger:
-      - platform: state
-        entity_id: <your_motion_entity>
-        to: "on"
-    action:
-      - service: camera.snapshot
-        target:
-          entity_id: <your_camera_entity>
-        data:
-          filename: "/config/www/<your_media_folder>/camera{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg"
+filename: "/config/www/<your_media_folder>/camera{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg"
 ```
 
-### Video clip example
+### Video clip
 
 ```yaml
-automation:
-  - alias: "Save clip on motion (example)"
-    trigger:
-      - platform: state
-        entity_id: <your_motion_entity>
-        to: "on"
-    action:
-      - service: camera.record
-        target:
-          entity_id: <your_camera_entity>
-        data:
-          filename: "/config/www/<your_media_folder>/camera{{ now().strftime('%Y%m%d_%H%M%S') }}.mp4"
-          duration: 10
+filename: "/config/www/<your_media_folder>/camera{{ now().strftime('%Y%m%d_%H%M%S') }}.mp4"
 ```
 
 ---
 
 ## Card Configuration
 
+### Sensor mode
+
 ```yaml
 type: custom:camera-gallery-card
+source_mode: sensor
 entity: sensor.<your_file_sensor_entity>
 delete_service: shell_command.<your_delete_service_name>
 preview_height: 320
 thumb_size: 140
 bar_position: top
 bar_opacity: 45
+preview_click_to_open: false
+```
+
+### Media folder mode
+
+```yaml
+type: custom:camera-gallery-card
+source_mode: media
+media_source: local/<your_media_folder>
+preview_height: 320
+thumb_size: 140
+bar_position: top
+bar_opacity: 45
+preview_click_to_open: false
 ```
 
 ---
 
 ## Delete Setup
 
-The gallery deletes files by calling a Home Assistant service.  
-This service must be defined in your `configuration.yaml`.
-
-### Add a shell command
+Delete is only supported in Sensor mode.
 
 ```yaml
 shell_command:
-  <your_delete_service_name>: "rm -f '{{ path }}'"
+  delete_file: "rm -f '{{ path }}'"
 ```
 
-Example of what runs:
-
-```
-rm -f '/config/www/<your_media_folder>/20250227_143022.mp4'
-```
-
-Restart Home Assistant after adding the shell command.
-
----
-
-### Configure the card
-
-```yaml
-delete_service: shell_command.<your_delete_service_name>
-```
-
----
-
-## Important Safety Note
-
-The card only allows deleting files inside:
-
-```
-/config/www/
-```
-
-⚠️ Files are permanently deleted.  
-There is no recycle bin.
+⚠️ Only files inside `/config/www/` can be deleted.
 
 ---
 
 ## File Naming Convention
 
-The card extracts date and time from filenames to enable:
-
-- Day filtering
-- Timestamp display
-- Correct sorting
-
-Required format inside filename:
+Required pattern:
 
 ```
 YYYYMMDD_HHMMSS
-```
-
-Supported:
-
-```
-YYYYMMDD-HHMMSS.jpg
-YYYYMMDD_HHMMSS.mp4
 ```
 
 Example:
@@ -223,51 +183,20 @@ Example:
 20250227_143022.jpg
 ```
 
-Interpreted as:
-
-- Date: 2025-02-27  
-- Time: 14:30:22  
-
-If the pattern is missing:
-
-- The file will still display
-- Date filtering and timestamps may not work
-
 ---
 
 ## Troubleshooting
 
-**Card not showing**
-
-- Verify the resource is added correctly
-- Hard refresh your browser
-
 **No media found**
-
-- Verify the file sensor entity exists
-- Confirm the `fileList` attribute contains file paths
-- Confirm files are stored under `/config/www/`
-
-**Delete not working**
-
-- Verify your service exists in Developer Tools → Services
-- Confirm the files are under `/config/www/`
-- Check Home Assistant logs for permission issues
+- Check sensor exists
+- Check `fileList`
+- Confirm files are in `/config/www/`
 
 ---
 
 ## License
 
-MIT © [TheScubadiver](https://github.com/TheScubadiver)
-
----
-
-## Credits
-
-Created by **TheScubaDiver**.
-
-Forks are welcome, but attribution is required under the MIT License.  
-Please keep the LICENSE file and this credits section intact.
+MIT © TheScubadiver
 
 ---
 
@@ -278,30 +207,122 @@ Please keep the LICENSE file and this credits section intact.
 Een lichte, swipebare mediagalerij-kaart voor [Home Assistant](https://www.home-assistant.io/) Lovelace.  
 Blader door `.jpg` snapshots en `.mp4` videoclips die lokaal op je systeem zijn opgeslagen — gesorteerd op datum, met navigatie per dag, bulkselectie, downloaden en verwijderen.
 
+---
+
 ## Functionaliteiten
 
 - 🖼️ Volledige previewbreedte met swipe-navigatie  
+- 📍 Instelbare previewpositie (boven / onder)  
+- 👆 Optioneel openen van de preview bij thumbnailklik  
 - 🎬 Inline video-afspelen met automatisch gegenereerde thumbnails  
 - 📅 Filteren per dag met datum-navigatie  
-- ✅ Bulk selecteren & verwijderen  
+- 🔄 Twee bronmodi (Bestandssensor of Media map)  
+- ✅ Bulk selecteren & verwijderen (alleen sensormodus)  
 - ⬇️ Bestanden downloaden met één tik  
 - 🕒 Instelbare tijdsbalk (boven / onder / verborgen)  
 - 🔆 Instelbare transparantie van de tijdsbalk  
-- 🎨 Visuele editor — geen YAML nodig  
+- 🎨 Slimme visuele editor met automatische dropdowns  
 - 📱 Volledig responsive en touch-vriendelijk  
+
+---
 
 ## Installatie
 
-Volg dezelfde stappen als hierboven bij **Installation**.
+### Via HACS (aanbevolen)
+
+1. Open HACS in Home Assistant  
+2. Ga naar **Frontend → Custom repositories**  
+3. Voeg deze repository toe  
+4. Installeer de kaart  
+5. Herstart Home Assistant  
+
+### Handmatig
+
+1. Download de JS-bestanden  
+2. Plaats ze in `/config/www/camera-gallery-card/`  
+3. Voeg de resource toe via Dashboards → Resources  
+4. Herstart Home Assistant  
+
+---
+
+## Bronmodi
+
+### Bestandssensor-modus
+Gebruikt een `sensor` met een `fileList` attribuut.  
+Ondersteunt verwijderen van bestanden.
+
+### Media map-modus
+Laadt bestanden rechtstreeks vanuit Home Assistant Media Source.  
+Verwijderen is hier niet beschikbaar.
+
+---
 
 ## Bestandssensor instellen
 
-Zie **File Sensor Setup** hierboven.
+Voorbeeld:
 
-## Verwijderinstellingen
+```yaml
+sensor:
+  - platform: files
+    folder: /config/www/<jouw_media_map>
+    name: jouw_gallery_sensor
+    sort: date
+```
 
-Zie **Delete Setup** hierboven.
+De map moet binnen `/config/www/` staan.
+
+---
+
+## Kaartconfiguratie
+
+```yaml
+type: custom:camera-gallery-card
+source_mode: sensor
+entity: sensor.jouw_gallery_sensor
+preview_height: 320
+thumb_size: 140
+bar_position: top
+bar_opacity: 45
+```
+
+---
+
+## Verwijderen instellen
+
+```yaml
+shell_command:
+  delete_file: "rm -f '{{ path }}'"
+```
+
+Alleen bestanden binnen `/config/www/` kunnen worden verwijderd.
+
+⚠️ Verwijderen is permanent.
+
+---
 
 ## Bestandsnaamconventie
 
-Zie **File Naming Convention** hierboven.
+Benodigd patroon:
+
+```
+YYYYMMDD_HHMMSS
+```
+
+Voorbeeld:
+
+```
+20250227_143022.jpg
+```
+
+---
+
+## Probleemoplossing
+
+**Geen media zichtbaar**
+- Controleer of de sensor bestaat  
+- Controleer of `fileList` gevuld is  
+- Controleer of bestanden in `/config/www/` staan  
+
+---
+
+MIT © TheScubadiver
