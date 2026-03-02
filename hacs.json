@@ -1,6 +1,6 @@
 {
   "name": "Camera Gallery Card",
-  "filename": "camera-gallery-card.js",
+  "filename": "dist/camera-gallery-card.js"
   "content_in_root": false,
   "render_readme": true
 }
