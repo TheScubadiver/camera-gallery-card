@@ -1,8 +1,8 @@
 /* camera-gallery-card-editor.js
- * v1.0.1
+ * v1.0.2
  */
 
-console.warn("CAMERA GALLERY EDITOR LOADED v1.0.1");
+console.warn("CAMERA GALLERY EDITOR LOADED v1.0.2");
 
 class CameraGalleryCardEditor extends HTMLElement {
   constructor() {
@@ -13,7 +13,7 @@ class CameraGalleryCardEditor extends HTMLElement {
     this._raf = null;
 
     // media source dropdown cache
-    this._mediaFolders = null; // array of "local/frigate" style folder paths
+    this._mediaFolders = null; // array of folder choices (strings)
     this._mediaFoldersLoading = false;
 
     // ✅ keep section open/close state across renders
@@ -52,6 +52,7 @@ class CameraGalleryCardEditor extends HTMLElement {
         ae.id === "delservice" ||
         ae.id === "height" ||
         ae.id === "thumb" ||
+        ae.id === "maxmedia" ||
         ae.id === "barop") &&
       ae.matches(":focus");
 
@@ -122,7 +123,12 @@ class CameraGalleryCardEditor extends HTMLElement {
   }
 
   _looksLikeFile(relPath) {
-    const last = String(relPath || "").split("/").pop() || "";
+    const v = String(relPath || "");
+    // If it's a full media-source id, don't classify as file by extension heuristics here.
+    // (Frigate paths often have no extension and weird trailing slashes)
+    if (v.startsWith("media-source://")) return false;
+
+    const last = v.split("/").pop() || "";
     return /\.(jpg|jpeg|png|gif|webp|mp4|mov|mkv|avi|m4v|wav|mp3|aac|flac|pdf|txt|json)$/i.test(
       last
     );
@@ -135,6 +141,30 @@ class CameraGalleryCardEditor extends HTMLElement {
       .replace(/^media-source:\/\//, "")
       .replace(/^\/+/, "")
       .trim();
+  }
+
+  _prettyLabel(choiceValue) {
+    const v = String(choiceValue || "");
+    if (!v) return "";
+
+    // For full ids, show readable path (strip prefix)
+    if (v.startsWith("media-source://")) {
+      return this._toRel(v);
+    }
+
+    // For regular relative paths
+    return v;
+  }
+
+  _numInt(v, fallback) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.round(n);
+  }
+
+  _clampInt(n, min, max) {
+    if (!Number.isFinite(n)) return min;
+    return Math.min(max, Math.max(min, Math.round(n)));
   }
 
   async _loadMediaFolders() {
@@ -163,29 +193,63 @@ class CameraGalleryCardEditor extends HTMLElement {
       return !!rel && !this._looksLikeFile(rel);
     };
 
+    const normStoreValue = (media_content_id) => {
+      const id = String(media_content_id || "").trim();
+      if (!id) return "";
+
+      // If it’s the classic media_source tree, store as relative (keeps your old behavior)
+      if (id.startsWith("media-source://media_source/")) {
+        const rel = this._toRel(id).replace(/^media_source\//, "");
+        return rel;
+      }
+
+      // Otherwise (frigate etc): store full media_content_id so the card can use it directly
+      if (id.startsWith("media-source://")) return id;
+
+      // Fallback: if HA ever returns without prefix
+      return id;
+    };
+
+    // ✅ provider blacklist (hide these roots + everything under them)
+    const shouldSkip = (media_content_id) => {
+      const store = normStoreValue(media_content_id);
+      const label = this._prettyLabel(store);
+      return label === "radio_browser" || label.startsWith("radio_browser/");
+    };
+
     try {
       const folderSet = new Set();
 
-      // Try both roots (HA differences)
-      let rootRes = null;
-      try {
-        rootRes = await browse("media-source://media_source");
-      } catch (_) {
-        rootRes = await browse("media-source://");
+      // ✅ Browse BOTH roots:
+      // - media-source://media_source  -> local/*
+      // - media-source://              -> other providers like frigate/*
+      const rootIds = [];
+      for (const root of ["media-source://media_source", "media-source://"]) {
+        try {
+          const rootRes = await browse(root);
+          const ids = getChildren(rootRes)
+            .map((it) => it?.media_content_id)
+            .filter(Boolean);
+          rootIds.push(...ids);
+        } catch (_) {}
       }
 
-      const rootIds = getChildren(rootRes)
-        .map((it) => it?.media_content_id)
-        .filter(Boolean);
+      // unique rootIds + filter blacklist
+      const uniqRootIds = Array.from(new Set(rootIds)).filter((rid) => !shouldSkip(rid));
 
-      // Add roots as fallback (local/mac_share/nas...) but only if they don't look like files
-      for (const rid of rootIds) {
-        const relRoot = this._toRel(rid).replace(/^media_source\//, "");
-        if (relRoot && !this._looksLikeFile(relRoot)) folderSet.add(relRoot);
+      // Add roots themselves as selectable folders (if they are not file-like)
+      for (const rid of uniqRootIds) {
+        if (shouldSkip(rid)) continue;
+
+        const store = normStoreValue(rid);
+        const label = this._prettyLabel(store);
+        if (label && !this._looksLikeFile(label)) folderSet.add(store);
       }
 
       // Depth 1 + 2 only (prevents mega lists)
-      for (const rid of rootIds) {
+      for (const rid of uniqRootIds) {
+        if (shouldSkip(rid)) continue;
+
         let level1 = null;
         try {
           level1 = await browse(rid);
@@ -197,32 +261,45 @@ class CameraGalleryCardEditor extends HTMLElement {
 
         for (const k1 of kids1) {
           if (!isFolder(k1)) continue;
+          if (shouldSkip(k1?.media_content_id)) continue;
 
-          const rel1 = this._toRel(k1?.media_content_id).replace(/^media_source\//, "");
-          if (rel1 && !this._looksLikeFile(rel1)) folderSet.add(rel1);
+          const id1 = k1?.media_content_id;
+          const store1 = normStoreValue(id1);
+          const label1 = this._prettyLabel(store1);
+          if (label1 && !this._looksLikeFile(label1)) folderSet.add(store1);
 
-          const id2 = k1?.media_content_id;
-          if (!id2) continue;
+          if (!id1) continue;
 
           // depth 2
           try {
-            const level2 = await browse(id2);
+            const level2 = await browse(id1);
             const kids2 = getChildren(level2);
 
             for (const k2 of kids2) {
               if (!isFolder(k2)) continue;
+              if (shouldSkip(k2?.media_content_id)) continue;
 
-              const rel2 = this._toRel(k2?.media_content_id).replace(
-                /^media_source\//,
-                ""
-              );
-              if (rel2 && !this._looksLikeFile(rel2)) folderSet.add(rel2);
+              const id2 = k2?.media_content_id;
+              const store2 = normStoreValue(id2);
+              const label2 = this._prettyLabel(store2);
+              if (label2 && !this._looksLikeFile(label2)) folderSet.add(store2);
             }
           } catch (_) {}
         }
       }
 
-      this._mediaFolders = Array.from(folderSet).sort((a, b) => a.localeCompare(b));
+      this._mediaFolders = Array.from(folderSet).sort((a, b) => {
+        const aa = this._prettyLabel(a);
+        const bb = this._prettyLabel(b);
+
+        // local first
+        const aLocal = aa === "local" || aa.startsWith("local/");
+        const bLocal = bb === "local" || bb.startsWith("local/");
+        if (aLocal && !bLocal) return -1;
+        if (!aLocal && bLocal) return 1;
+
+        return aa.localeCompare(bb, undefined, { numeric: true, sensitivity: "base" });
+      });
     } catch (e) {
       this._mediaFolders = [];
     } finally {
@@ -256,7 +333,9 @@ class CameraGalleryCardEditor extends HTMLElement {
     const mediaSource = String(c.media_source || "").trim();
     const mediaLoading = this._mediaFoldersLoading === true;
 
-    const mediaSourceIsFile = this._looksLikeFile(mediaSource);
+    // For full ids, never treat as file
+    const mediaSourceIsFile =
+      !mediaSource.startsWith("media-source://") && this._looksLikeFile(mediaSource);
 
     // Don't let a file value pollute the dropdown list
     const mediaChoices = this._mergeChoices(
@@ -266,9 +345,15 @@ class CameraGalleryCardEditor extends HTMLElement {
 
     const height = Number(c.preview_height) || 320;
     const thumbSize = Number(c.thumb_size) || 140;
-    const tsPos = String(c.bar_position || "top");
 
-    // ✅ NEW: preview position (top|bottom)
+    // ✅ max_media: editor default should match card default (200)
+    // ✅ and we allow 1..2000 because YOU want 3 to be valid
+    const maxMedia = (() => {
+      const n = this._numInt(c.max_media, 200);
+      return this._clampInt(n, 1, 2000);
+    })();
+
+    const tsPos = String(c.bar_position || "top");
     const previewPos = String(c.preview_position || "top"); // "top" | "bottom"
 
     // ✅ Delete service options from HA
@@ -427,13 +512,13 @@ class CameraGalleryCardEditor extends HTMLElement {
         select.select{
           appearance:none;
           -webkit-appearance:none;
-          padding-right:44px; /* space for arrow */
+          padding-right:44px;
           cursor:pointer;
         }
         .selarrow{
           position:absolute;
           top:50%;
-          right:20px; /* bigger = more to the left */
+          right:20px;
           width:10px;
           height:10px;
           transform:translateY(-50%) rotate(45deg);
@@ -597,12 +682,12 @@ class CameraGalleryCardEditor extends HTMLElement {
                       ? `<option value="${mediaSource}" selected>(loading…)</option>`
                       : mediaChoices.length
                         ? mediaChoices
-                            .map(
-                              (p) =>
-                                `<option value="${p}" ${
-                                  p === mediaSource ? "selected" : ""
-                                }>${p}</option>`
-                            )
+                            .map((p) => {
+                              const label = this._prettyLabel(p);
+                              return `<option value="${p}" ${
+                                p === mediaSource ? "selected" : ""
+                              }>${label}</option>`;
+                            })
                             .join("")
                         : `<option value="${mediaSource}" selected>(no folders found)</option>`
                   }
@@ -715,6 +800,13 @@ class CameraGalleryCardEditor extends HTMLElement {
               <div class="desc">Size of each thumbnail (px)</div>
               <input class="input" id="thumb" type="number" value="${thumbSize}" />
             </div>
+
+            <!-- ✅ max_media -->
+            <div class="row">
+              <div class="lbl">Maximum items shown</div>
+              <div class="desc">This is the ONLY limit. Set 3 = you see 3. Set 10 = you see 10.</div>
+              <input class="input" id="maxmedia" type="number" min="1" max="2000" value="${maxMedia}" />
+            </div>
           </div>
         </div>
 
@@ -747,8 +839,8 @@ class CameraGalleryCardEditor extends HTMLElement {
               <div class="desc">Opacity of the timestamp bar (0–100)</div>
               <div class="barrow">
                 <input class="slider" id="barop" type="range" min="0" max="100" value="${barOpacity}" ${
-      barDisabled ? "disabled" : ""
-    }/>
+                  barDisabled ? "disabled" : ""
+                }/>
                 <div class="pillval" id="barval">${barOpacity}%</div>
               </div>
             </div>
@@ -809,7 +901,7 @@ class CameraGalleryCardEditor extends HTMLElement {
       this._set("preview_height", Number(e.target.value) || 320)
     );
 
-    // ✅ NEW: preview position segmented buttons
+    // ✅ preview position segmented buttons
     this.shadowRoot.querySelectorAll(".seg[data-ppos]").forEach((btn) => {
       btn.addEventListener("click", () =>
         this._set("preview_position", btn.dataset.ppos)
@@ -820,14 +912,20 @@ class CameraGalleryCardEditor extends HTMLElement {
       this._set("thumb_size", Number(e.target.value) || 140)
     );
 
+    // ✅ max_media handler (live + on change)
+    const pushMaxMedia = (raw) => {
+      const n = this._numInt(raw, 1);
+      const v = this._clampInt(n, 1, 2000);
+      this._set("max_media", v);
+    };
+
+    $("maxmedia")?.addEventListener("input", (e) => pushMaxMedia(e.target.value));
+    $("maxmedia")?.addEventListener("change", (e) => pushMaxMedia(e.target.value));
+
     $("clicktoopen")?.addEventListener("change", (e) => {
       const on = !!e.target.checked;
-
-      // ✅ user-visible toggle stays in YAML
       this._set("preview_click_to_open", on);
-
-      // ✅ close-on-tap is ALWAYS true, but is NOT stored/shown in YAML anymore.
-      // The card should enforce it internally.
+      // preview_close_on_tap is always true in card when gated; editor never stores it
     });
 
     // timestamp position segmented buttons
@@ -844,7 +942,6 @@ class CameraGalleryCardEditor extends HTMLElement {
     });
     barop?.addEventListener("change", (e) => {
       const v = Number(e.target.value);
-      // ✅ consistent key: bar_opacity
       this._set("bar_opacity", Number.isFinite(v) ? v : 45);
     });
   }
