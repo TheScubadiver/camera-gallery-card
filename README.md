@@ -171,7 +171,7 @@ media_folders_fav:
 
 ---
 
-# Delete (Sensor Mode)
+# Delete Setup
 
 In **File Sensor Mode**, the card can delete items. Home Assistant itself cannot delete arbitrary files, so you must provide a delete service.
 
