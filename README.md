@@ -11,7 +11,7 @@ Now fully compatible with **Frigate Media Source** (images + video) with improve
 </tr>
 </table>
 
-> **Current version:** 1.1.0
+> **Current version:** 1.2.0
 
 ---
 
