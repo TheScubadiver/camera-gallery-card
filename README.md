@@ -1,144 +1,107 @@
 # Camera Gallery Card
 
-<p align="center">
-<img src="https://github.com/user-attachments/assets/4d5b240b-b04b-446c-9f55-8104e593c11e" width="48%">
-<img src="https://github.com/user-attachments/assets/be095e81-f0fb-40ee-849f-e3e05be6a95c" width="48%">
-</p>
+Custom Home Assistant Lovelace card for browsing camera media with a clean timeline-style gallery, preview player, object filters, optional camera live view, and a built-in visual editor.
 
-<p align="center">
-<img src="https://github.com/user-attachments/assets/e3cb7c8a-fdad-40bb-bd0f-bc8951169bdb" width="48%">
-<img src="https://github.com/user-attachments/assets/be6ad1e5-3588-4fcc-8fe5-8a0c37a2fda5" width="48%">
-</p>
+**Current version:** `v1.4.0`
 
-<p align="center">
-<img src="https://github.com/user-attachments/assets/d50a40f7-e418-4ba4-92ca-7c7f25ecb264" width="48%">
-</p>
+<img width="502" height="653" alt="Scherm­afbeelding 2026-03-09 om 12 47 05" src="https://github.com/user-attachments/assets/5efa9e10-9ac3-48bf-8abf-2a009e797e79" />
+<img width="504" height="653" alt="Scherm­afbeelding 2026-03-09 om 12 47 23" src="https://github.com/user-attachments/assets/75fbfa4c-c49b-4633-b304-79a939776d4f" />
 
 
-A lightweight, swipeable media gallery card for Home Assistant Lovelace. Browse snapshots and video clips from either file-list sensors or Home Assistant Media Source — with day-by-day navigation, object filters, download support, optional delete actions, and built-in live camera preview.
+The card supports:
 
-The card is built for touch devices, tablets, and dashboards, and works especially well with Frigate media.
-
-> **Current version:** 1.3.0
-
----
-
-# Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-  - [HACS Installation](#hacs-installation)
-  - [Manual Installation](#manual-installation)
-- [Source Modes](#source-modes)
-  - [Sensor Mode](#sensor-mode)
-  - [Media Source Mode](#media-source-mode)
-- [Live Mode](#live-mode)
-- [Frigate Usage](#frigate-usage)
-- [Delete Setup](#delete-setup)
-- [Configuration Options](#configuration-options)
-- [Example Configurations](#example-configurations)
-- [Notes](#notes)
-- [License](#license)
+- media from `sensor` entities with a `fileList` attribute  
+- media from Home Assistant `media_source`  
+- optional live camera preview  
+- thumbnail actions such as delete, bulk delete, and download  
+- a custom Lovelace editor with suggestions and validation  
 
 ---
 
 # Features
 
-- Full preview area for images, videos, and optional live camera view
-- Swipe navigation inside the preview
-- Optional built-in **live camera preview**
-- Configurable preview position: **top** or **bottom**
-- Optional **click-to-open preview**
-- Inline video playback
-- Automatic video poster generation
-- Day-by-day navigation with **Today** shortcut
-- Object filter buttons (`person`, `car`, `dog`, `cat`, etc.)
-- Multi-select object filtering
-- Source mode: **sensor** or **media**
-- Support for **multiple sensors**
-- Support for **multiple media folders**
-- Horizontal thumbnail strip with **mouse wheel / trackpad scrolling**
-- Configurable thumbnail size
-- Configurable preview bar position (**top / bottom / hidden**)
-- Adjustable preview bar opacity
-- Configurable thumbnail bar position (**top / bottom / hidden**)
-- Download button for current item
-- Select mode for multiple items
-- Bulk delete support (**sensor mode only**)
-- UI-only config updates without full reload
-- Responsive layout
-- Optimized for **tablets and dashboards**
-- Native Home Assistant editor with tabs and autocomplete
+## Gallery
+- Preview for images and videos
+- Thumbnail timeline
+- Day-based navigation
+- Timestamp parsing from filenames
+- Object filter buttons
+- Horizontal or vertical thumbnail layout
+- Optional live camera mode
+- Mobile-friendly interactions
+- Media Source support
+- Sensor-based file list support
+
+## Actions
+- Single delete
+- Multiple delete
+- Download media
+- Long press thumbnail action sheet
+
+## Editor
+- Built-in visual config editor
+- Separate tabs for:
+  - General
+  - Viewer
+  - Live
+  - Thumbnails
+- Entity suggestions for compatible `sensor.*` entities
+- Dynamic media folder suggestions for `media-source://...`
+- Field validation for sensors and media folders
+- Object filter picker with icons
+- Automatic cleanup of deprecated / legacy config keys
 
 ---
 
 # Installation
 
-## HACS Installation
+## HACS
 
 1. Open **HACS**
 2. Go to **Frontend**
-3. Click **⋮ → Custom repositories**
-4. Add:
-
-```text
-https://github.com/TheScubadiver/camera-gallery-card
-```
-
-Category: **Dashboard**
-
+3. Click **Custom repositories**
+4. Add this repository
 5. Install **Camera Gallery Card**
-6. Restart Home Assistant
+6. Reload Home Assistant
 
 ---
 
-## Manual Installation
+## Manual
 
-Download:
+1. Copy the files:
 
-- `camera-gallery-card.js`
-- `camera-gallery-card-editor.js`
-
-Copy them to:
-
-```text
-/config/www/camera-gallery-card/
+```
+camera-gallery-card.js
+camera-gallery-card-editor.js
 ```
 
-Add resource in **Settings → Dashboards → Resources**:
+to:
 
-```text
-URL: /local/camera-gallery-card/camera-gallery-card.js
-Type: JavaScript Module
+```
+/config/www/
 ```
 
-Restart Home Assistant.
+2. Add Lovelace resource:
+
+```yaml
+url: /local/camera-gallery-card.js
+type: module
+```
+
+3. Reload Home Assistant.
 
 ---
 
-# Source Modes
+# Basic usage
 
-The card supports two different ways of loading media.
+## Sensor mode
 
----
-
-# Sensor Mode
-
-Uses one or more sensors with a `fileList` attribute.
-
-Example sensor output:
-
-```text
-/config/www/camera-gallery/clip1.mp4
-/config/www/camera-gallery/snapshot1.jpg
-```
-
-Example card:
+Use sensors that expose a `fileList` attribute.
 
 ```yaml
 type: custom:camera-gallery-card
 source_mode: sensor
-entity: sensor.camera_files
+entity: sensor.camera_events
 ```
 
 Multiple sensors:
@@ -147,54 +110,42 @@ Multiple sensors:
 type: custom:camera-gallery-card
 source_mode: sensor
 entities:
-  - sensor.camera_files_front
-  - sensor.camera_files_back
+  - sensor.frontdoor_gallery
+  - sensor.backyard_gallery
 ```
 
-### Advantages
+Example `fileList` attribute:
 
-- Delete support
-- Fast loading
-- Works with custom folders
-- Supports combining multiple sensors into one gallery
-
-### Notes
-
-Sensor must expose:
-
-```text
-fileList
-```
-
-Paths under:
-
-```text
-/config/www/
-```
-
-are automatically converted to:
-
-```text
-/local/
+```json
+[
+  "/local/camera/frontdoor/2026-03-09_12-32-10_person.jpg",
+  "/local/camera/frontdoor/2026-03-09_12-33-01_person.mp4"
+]
 ```
 
 ---
 
-# Media Source Mode
+## Media Source mode
 
-Loads files directly from **Home Assistant Media Source**.
-
-Recommended when using **Frigate**.
-
-Example:
+Browse media directly from Home Assistant media sources.
 
 ```yaml
 type: custom:camera-gallery-card
 source_mode: media
-media_source: media-source://frigate/frigate/event-search/clips
+media_source: media-source://media_source/local/camera
 ```
 
-Multiple folders:
+Multiple media folders:
+
+```yaml
+type: custom:camera-gallery-card
+source_mode: media
+media_sources:
+  - media-source://media_source/local/frontdoor
+  - media-source://media_source/local/backyard
+```
+
+Frigate example:
 
 ```yaml
 type: custom:camera-gallery-card
@@ -204,263 +155,260 @@ media_sources:
   - media-source://frigate/frigate/event-search/snapshots
 ```
 
-### Advantages
-
-- Works directly with Media Source
-- Ideal for Frigate
-- No sensors required
-- Supports multiple folders in a single gallery
-
-### Notes
-
-Delete functionality is **not available** in media mode.
-
 ---
 
-# Live Mode
-
-The card can optionally show a live camera stream inside the main preview area.
-
-Live mode uses a Home Assistant `camera.*` entity and can be enabled per card.
-
-Example:
+# Example configuration
 
 ```yaml
 type: custom:camera-gallery-card
-source_mode: media
-media_sources:
-  - media-source://frigate/frigate/event-search/clips
-live_enabled: true
-live_camera_entity: camera.voordeur
-live_default: false
-```
 
-### Live options
+source_mode: sensor
+entities:
+  - sensor.frontdoor_gallery
 
-- `live_enabled` — enable live mode
-- `live_camera_entity` — camera entity used for live preview
-- `live_default` — start the card in live mode
-
-### Notes
-
-- Live mode appears inside the same preview area as media
-- Recorded media and live preview can exist in the same card
-- The live provider is handled internally and does not require configuration
-
----
-
-# Frigate Usage
-
-Example configuration for Frigate media:
-
-```yaml
-type: custom:camera-gallery-card
-source_mode: media
-media_sources:
-  - media-source://frigate/frigate/event-search/clips
-  - media-source://frigate/frigate/event-search/snapshots
+preview_height: 320
 preview_position: top
+preview_click_to_open: false
+
+bar_position: top
+bar_opacity: 45
+
+thumb_layout: horizontal
+thumb_size: 140
+thumb_bar_position: bottom
+max_media: 20
+
 object_filters:
   - person
   - car
   - dog
-  - cat
+
 live_enabled: true
-live_camera_entity: camera.voordeur
+live_camera_entity: camera.frontdoor
+live_default: false
+
+delete_service: shell_command.delete_file
 ```
 
 ---
 
-# Delete Setup
+# Configuration options
 
-Delete only works in **sensor mode**.
+| Option | Type | Default | Description |
+|------|------|------|------|
+| `source_mode` | string | `sensor` | `sensor` or `media` |
+| `entity` | string | — | Single sensor |
+| `entities` | list | — | Multiple sensors |
+| `media_source` | string | — | Single media root |
+| `media_sources` | list | — | Multiple media roots |
+| `preview_height` | number | `320` | Preview height |
+| `preview_position` | string | `top` | `top` or `bottom` |
+| `preview_click_to_open` | boolean | `false` | Only open preview after click |
+| `bar_position` | string | `top` | Preview timestamp bar |
+| `bar_opacity` | number | `45` | Preview bar opacity |
+| `thumb_layout` | string | `horizontal` | Thumbnail layout |
+| `thumb_size` | number | `140` | Thumbnail size |
+| `thumb_bar_position` | string | `bottom` | Thumbnail bar position |
+| `max_media` | number | `20` | Maximum media loaded |
+| `object_filters` | list | `[]` | Visible object filters |
+| `live_enabled` | boolean | `false` | Enable live preview |
+| `live_camera_entity` | string | — | Camera entity |
+| `live_default` | boolean | `false` | Start in live mode |
+| `delete_service` | string | — | Delete file service |
 
-Create a shell command.
+---
 
-Add to `configuration.yaml`:
+# Object filters
+
+<img width="476" height="40" alt="Scherm­afbeelding 2026-03-09 om 12 51 30" src="https://github.com/user-attachments/assets/84307f8a-7cdd-49b4-8fb6-c89ae7403823" />
+
+Supported object filters:
+
+- `bicycle`
+- `bird`
+- `bus`
+- `car`
+- `cat`
+- `dog`
+- `motorcycle`
+- `person`
+- `truck`
+
+Example:
+
+```yaml
+object_filters:
+  - person
+  - car
+  - dog
+```
+
+Recommended filenames:
+
+```
+2026-03-09_12-31-10_person.jpg
+2026-03-09_12-31-10_car.mp4
+2026-03-09_12-31-10_dog.jpg
+```
+
+---
+
+# Live mode
+
+<img width="497" height="425" alt="Scherm­afbeelding 2026-03-09 om 12 52 40" src="https://github.com/user-attachments/assets/e6c1129a-7690-4f1c-8ac1-a4cb306add26" />
+<img width="502" height="428" alt="Scherm­afbeelding 2026-03-09 om 12 52 49" src="https://github.com/user-attachments/assets/7c32f1ba-7892-480c-9e6e-0f6f771a1777" />
+
+Enable live camera preview inside the gallery.
+
+```yaml
+live_enabled: true
+live_camera_entity: camera.frontdoor
+live_default: true
+```
+
+Features:
+
+- Live preview badge
+- Camera switch support
+- Optional start in live mode
+
+---
+
+# Thumbnail actions
+
+<img width="432" height="300" alt="Scherm­afbeelding 2026-03-09 om 12 50 48" src="https://github.com/user-attachments/assets/72705dab-3372-4d38-891b-379356bfc589" />
+
+Long press a thumbnail to open the action menu.
+
+Available actions:
+
+- Delete
+- Multiple delete
+- Download
+
+Notes:
+
+- Delete requires a configured service.
+- Frigate media sources do not support delete actions.
+
+---
+
+# Delete setup
+
+Example shell command:
 
 ```yaml
 shell_command:
-  camera_gallery_delete: 'bash -lc "rm -f -- \"{{ path }}\""'
+  delete_file: 'rm "$path"'
 ```
 
-Restart Home Assistant.
-
-Then configure the card:
+Card config:
 
 ```yaml
-type: custom:camera-gallery-card
-source_mode: sensor
-entity: sensor.camera_files
-delete_service: shell_command.camera_gallery_delete
+delete_service: shell_command.delete_file
 ```
 
-### Safety
+Delete operations are restricted to files inside:
 
-Files can only be deleted inside:
-
-```text
+```
 /config/www/
 ```
 
-Example valid path:
+for safety.
 
-```text
-/config/www/camera-gallery/clip1.mp4
+---
+
+# Editor
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/a0858a81-3ad3-4b24-b3f8-3ce8107d98b0" width="230">
+  <img src="https://github.com/user-attachments/assets/4cd00913-ceef-4556-a1fc-0802c231d9e4" width="230">
+  <img src="https://github.com/user-attachments/assets/306dc7b2-880d-456a-94cb-32d64f70e4aa" width="230">
+  <img src="https://github.com/user-attachments/assets/3fc8fbf1-5fda-4240-87c6-354c49940bc2" width="230">
+</p>
+
+The card includes a custom Lovelace editor.
+
+File:
+
+```
+camera-gallery-card-editor.js
+```
+
+## Editor tabs
+
+### General
+- Source mode
+- File sensors
+- Media folders
+- Delete service
+
+### Viewer
+- Preview height
+- Preview position
+- Open-on-click
+- Preview bar position
+- Preview bar opacity
+
+### Live
+- Enable live preview
+- Camera entity
+- Start in live mode
+
+### Thumbnails
+- Thumbnail layout
+- Thumbnail size
+- Maximum thumbnails
+- Thumbnail bar position
+- Object filter selector
+
+---
+
+# Editor smart features
+
+### Entity suggestions
+
+The editor suggests compatible entities automatically.
+
+Requirements:
+
+- domain `sensor`
+- attribute `fileList`
+
+---
+
+### Media folder suggestions
+
+Dynamic suggestions using Home Assistant media browser.
+
+Examples:
+
+```
+media-source://frigate/frigate/event-search/clips
+media-source://frigate/frigate/event-search/snapshots
+media-source://media_source/local
 ```
 
 ---
 
-# Configuration Options
+### Validation
 
-## Source
+Sensor entries are valid when:
 
-| Option | Description |
-|---|---|
-| `source_mode` | `sensor` or `media` |
-| `entity` | single sensor |
-| `entities` | multiple sensors |
-| `media_source` | single media folder |
-| `media_sources` | multiple media folders |
-| `max_media` | maximum number of items loaded |
+- entity starts with `sensor.`
+- entity exists in Home Assistant
 
-## Preview
+Media folder entries are valid when:
 
-| Option | Description |
-|---|---|
-| `preview_position` | `top` / `bottom` |
-| `preview_height` | preview height in px |
-| `preview_click_to_open` | only show preview after selecting an item |
-
-## Live
-
-| Option | Description |
-|---|---|
-| `live_enabled` | enable live mode |
-| `live_camera_entity` | camera entity used for live preview |
-| `live_default` | open card in live mode |
-
-## Bars & Thumbnails
-
-| Option | Description |
-|---|---|
-| `bar_position` | `top` / `bottom` / `hidden` |
-| `bar_opacity` | preview bar opacity |
-| `thumb_size` | thumbnail size |
-| `thumb_bar_position` | `top` / `bottom` / `hidden` |
-
-## Object Filters
-
-```yaml
-object_filters:
-  - person
-  - car
-  - dog
-  - cat
-```
-
-Max: **4 filters**
-
-Supported:
-
-- person
-- car
-- dog
-- cat
-- truck
-- bus
-- bicycle
-- motorcycle
-- bird
-
-## Delete Options
-
-| Option | Description |
-|---|---|
-| `delete_service` | Home Assistant service used to delete files |
-| `allow_delete` | enable single delete action |
-| `allow_bulk_delete` | enable multi-select delete |
-| `delete_confirm` | require confirmation before delete |
+- path starts with `media-source://`
+- entry is a folder (not a file)
 
 ---
 
-# Example Configurations
+# Supported file types
 
-## Basic sensor setup
+Images:
 
-```yaml
-type: custom:camera-gallery-card
-source_mode: sensor
-entity: sensor.camera_files
-preview_position: top
-preview_height: 320
 ```
-
-## Multiple sensors
-
-```yaml
-type: custom:camera-gallery-card
-source_mode: sensor
-entities:
-  - sensor.camera_files_front
-  - sensor.camera_files_back
-delete_service: shell_command.camera_gallery_delete
-allow_delete: true
-allow_bulk_delete: true
-delete_confirm: true
-```
-
-## Media Source
-
-```yaml
-type: custom:camera-gallery-card
-source_mode: media
-media_source: media-source://media_source/camera-gallery
-thumb_size: 140
-max_media: 30
-```
-
-## Frigate setup
-
-```yaml
-type: custom:camera-gallery-card
-source_mode: media
-media_sources:
-  - media-source://frigate/frigate/event-search/clips
-  - media-source://frigate/frigate/event-search/snapshots
-preview_position: top
-preview_click_to_open: true
-object_filters:
-  - person
-  - car
-  - dog
-  - cat
-live_enabled: true
-live_camera_entity: camera.voordeur
-```
-
-## Live-first setup
-
-```yaml
-type: custom:camera-gallery-card
-source_mode: media
-media_sources:
-  - media-source://frigate/frigate/event-search/clips
-live_enabled: true
-live_camera_entity: camera.voordeur
-live_default: true
-preview_position: top
-preview_height: 400
-thumb_size: 140
-```
-
----
-
-# Notes
-
-Supported image formats:
-
-```text
 jpg
 jpeg
 png
@@ -468,31 +416,35 @@ webp
 gif
 ```
 
-Supported video formats:
+Videos:
 
-```text
+```
 mp4
 webm
 mov
 m4v
 ```
 
-Media is automatically sorted by timestamp when possible.
+---
 
-Works best on:
+# Filename parsing
 
-- Tablets
-- Wall dashboards
-- Touch screens
+The card extracts timestamps from filenames.
 
-The editor includes:
+Examples:
 
-- Tabbed layout
-- Sensor autocomplete
-- Media source autocomplete
-- Live validation for sensors and media folders
+```
+2026-03-09_12-31-10_person.jpg
+20260309_123110_person.jpg
+clip-1741512345-person.mp4
+```
 
-Legacy editor-only options such as `live_provider` and `show_live_toggle` have been removed to simplify configuration.
+Used for:
+
+- sorting newest to oldest
+- day grouping
+- preview timestamps
+- thumbnail labels
 
 ---
 
