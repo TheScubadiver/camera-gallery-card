@@ -10,9 +10,38 @@ const AVAILABLE_OBJECT_FILTERS = [
   "motorcycle",
   "person",
   "truck",
+  "visitor",
 ];
 
 const MAX_VISIBLE_OBJECT_FILTERS = AVAILABLE_OBJECT_FILTERS.length;
+
+const STYLE_COLOR_CONTROLS = [
+  {
+    hostId: "bgcolor-host",
+    variable: "--cgc-card-bg",
+    label: "Card background",
+  },
+  {
+    hostId: "iconcolor-host",
+    variable: "--cgc-obj-icon-color",
+    label: "Filter icon color",
+  },
+  {
+    hostId: "iconactive-host",
+    variable: "--cgc-obj-icon-active-color",
+    label: "Active filter icon",  
+  },
+  {
+    hostId: "btnactive-host",
+    variable: "--cgc-obj-btn-active-bg",
+    label: "Active filter background",
+  },
+  {
+    hostId: "bordercolor-host",
+    variable: "--cgc-card-border-color",
+    label: "Card border color",
+  },
+];
 
 class CameraGalleryCardEditor extends HTMLElement {
   constructor() {
@@ -439,22 +468,6 @@ class CameraGalleryCardEditor extends HTMLElement {
     return false;
   }
 
-  _isLightTheme() {
-    try {
-      const cs = getComputedStyle(this);
-      const bg =
-        cs.getPropertyValue("--primary-background-color") ||
-        cs.getPropertyValue("--lovelace-background") ||
-        cs.backgroundColor ||
-        "";
-      const rgb = this._parseCssColorToRgb(bg);
-      if (!rgb) return false;
-      return this._luminance(rgb) > 0.6;
-    } catch (_) {
-      return false;
-    }
-  }
-
   _isWebRTCAvailable() {
     try {
       const ctor = customElements.get("webrtc-camera");
@@ -524,14 +537,6 @@ class CameraGalleryCardEditor extends HTMLElement {
     if (!s) return "";
     const parts = s.split("/");
     return parts[parts.length - 1] || s;
-  }
-
-  _luminance({ r, g, b }) {
-    const srgb = [r, g, b].map((x) => {
-      x = x / 255;
-      return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
   }
 
   _mediaBaseAndNeedle(rawLine) {
@@ -616,6 +621,7 @@ class CameraGalleryCardEditor extends HTMLElement {
       motorcycle: "mdi:motorbike",
       person: "mdi:account",
       truck: "mdi:truck",
+      visitor: "mdi:doorbell-video",
     };
     return map[v] || "mdi:shape";
   }
@@ -758,33 +764,6 @@ class CameraGalleryCardEditor extends HTMLElement {
     this._scheduleRender();
   }
 
-  _parseCssColorToRgb(v) {
-    const s = String(v || "").trim().toLowerCase();
-    if (!s) return null;
-
-    const m = s.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
-    if (m) return { r: +m[1], g: +m[2], b: +m[3] };
-
-    if (s.startsWith("#")) {
-      const hex = s.slice(1);
-      if (hex.length === 3) {
-        return {
-          r: parseInt(hex[0] + hex[0], 16),
-          g: parseInt(hex[1] + hex[1], 16),
-          b: parseInt(hex[2] + hex[2], 16),
-        };
-      }
-      if (hex.length >= 6) {
-        return {
-          r: parseInt(hex.slice(0, 2), 16),
-          g: parseInt(hex.slice(2, 4), 16),
-          b: parseInt(hex.slice(4, 6), 16),
-        };
-      }
-    }
-    return null;
-  }
-
   _parseTextList(raw) {
     const s = String(raw || "");
     const parts = s
@@ -808,6 +787,14 @@ class CameraGalleryCardEditor extends HTMLElement {
     if (!v) return "";
     if (v.startsWith("media-source://")) return this._toRel(v);
     return v;
+  }
+
+  _getStyleVariableValue(variableName) {
+    const styleVariables = String(this._config?.style_variables || "");
+    const escaped = String(variableName || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = styleVariables.match(new RegExp(`${escaped}\\s*:\\s*([^;]+)`));
+
+    return match ? match[1].trim() : "";
   }
 
   _render() {
@@ -926,7 +913,6 @@ class CameraGalleryCardEditor extends HTMLElement {
 
     const liveEnabled = c.live_enabled === true;
     const liveCameraEntity = String(c.live_camera_entity || "").trim();
-    const liveDefault = c.live_default === true;
     const webrtcAvailable = this._webrtcAvailable;
     const liveControlsDisabled = !webrtcAvailable;
 
@@ -942,163 +928,204 @@ class CameraGalleryCardEditor extends HTMLElement {
         return an.localeCompare(bn);
       });
 
-    const isLight = this._isLightTheme();
-
-    const dark = {
-      arrow: "rgba(255,255,255,0.78)",
-      chipBg: "rgba(255,255,255,0.035)",
-      chipBorder: "rgba(255,255,255,0.09)",
-      chipDisabled: "0.42",
-      chipIconBg: "rgba(255,255,255,0.07)",
-      chipOnBg: "rgba(255,255,255,0.12)",
-      chipOnBorder: "rgba(255,255,255,0.18)",
-      chipOnIconBg: "rgba(255,255,255,0.16)",
-      chipOnTxt: "rgba(255,255,255,0.98)",
-      chipTxt: "rgba(255,255,255,0.92)",
-      focusRing: "rgba(255,255,255,0.12)",
-      inputBg: "rgba(255,255,255,0.055)",
-      inputBorder: "rgba(255,255,255,0.08)",
-      invalid: "rgba(255, 91, 91, 0.92)",
-      invalidGlow: "rgba(255, 91, 91, 0.14)",
-      muted: "0.56",
-      pillBg: "rgba(255,255,255,0.10)",
-      pillBorder: "rgba(255,255,255,0.08)",
-      pillTxt: "rgba(255,255,255,0.98)",
-      rowBg: "rgba(255,255,255,0.028)",
-      rowBorder: "rgba(255,255,255,0.055)",
-      sectionBg: "rgba(255,255,255,0.03)",
-      sectionBorder: "rgba(255,255,255,0.06)",
-      sectionGlow: "0 1px 0 rgba(255,255,255,0.03) inset",
-      segBg: "rgba(255,255,255,0.045)",
-      segBorder: "rgba(255,255,255,0.08)",
-      segOnBg: "#ffffff",
-      segOnTxt: "rgba(0,0,0,0.96)",
-      segTxt: "rgba(255,255,255,0.78)",
-      selectBg: "rgba(255,255,255,0.055)",
-      selectBorder: "rgba(255,255,255,0.08)",
-      suggActive: "rgba(255,255,255,0.14)",
-      suggBg: "rgba(18,18,22,0.98)",
-      suggBorder: "rgba(255,255,255,0.09)",
-      suggHover: "rgba(255,255,255,0.08)",
-      tabBg: "rgba(255,255,255,0.035)",
-      tabBorder: "rgba(255,255,255,0.07)",
-      tabOnBg: "rgba(255,255,255,0.12)",
-      tabOnBorder: "rgba(255,255,255,0.16)",
-      tabOnTxt: "rgba(255,255,255,0.99)",
-      tabTxt: "rgba(255,255,255,0.76)",
-      text: "rgba(255,255,255,0.94)",
-      text2: "rgba(255,255,255,0.70)",
-      valid: "rgba(64, 196, 120, 0.95)",
-      validGlow: "rgba(64, 196, 120, 0.14)",
-    };
-
-    const lightPal = {
-      arrow: "rgba(0,0,0,0.58)",
-      chipBg: "rgba(0,0,0,0.028)",
-      chipBorder: "rgba(0,0,0,0.09)",
-      chipDisabled: "0.46",
-      chipIconBg: "rgba(0,0,0,0.05)",
-      chipOnBg: "rgba(0,0,0,0.075)",
-      chipOnBorder: "rgba(0,0,0,0.14)",
-      chipOnIconBg: "rgba(0,0,0,0.10)",
-      chipOnTxt: "rgba(0,0,0,0.94)",
-      chipTxt: "rgba(0,0,0,0.88)",
-      focusRing: "rgba(0,0,0,0.08)",
-      inputBg: "rgba(0,0,0,0.028)",
-      inputBorder: "rgba(0,0,0,0.10)",
-      invalid: "rgba(219,68,55,0.92)",
-      invalidGlow: "rgba(219,68,55,0.14)",
-      muted: "0.64",
-      pillBg: "rgba(0,0,0,0.56)",
-      pillBorder: "rgba(0,0,0,0.14)",
-      pillTxt: "rgba(255,255,255,0.98)",
-      rowBg: "rgba(0,0,0,0.018)",
-      rowBorder: "rgba(0,0,0,0.055)",
-      sectionBg: "rgba(0,0,0,0.02)",
-      sectionBorder: "rgba(0,0,0,0.07)",
-      sectionGlow: "0 1px 0 rgba(255,255,255,0.6) inset",
-      segBg: "rgba(0,0,0,0.03)",
-      segBorder: "rgba(0,0,0,0.08)",
-      segOnBg: "rgba(0,0,0,0.9)",
-      segOnTxt: "rgba(255,255,255,0.99)",
-      segTxt: "rgba(0,0,0,0.70)",
-      selectBg: "rgba(0,0,0,0.028)",
-      selectBorder: "rgba(0,0,0,0.10)",
-      suggActive: "rgba(0,0,0,0.08)",
-      suggBg: "rgba(255,255,255,0.99)",
-      suggBorder: "rgba(0,0,0,0.10)",
-      suggHover: "rgba(0,0,0,0.045)",
-      tabBg: "rgba(0,0,0,0.025)",
-      tabBorder: "rgba(0,0,0,0.08)",
-      tabOnBg: "rgba(0,0,0,0.08)",
-      tabOnBorder: "rgba(0,0,0,0.14)",
-      tabOnTxt: "rgba(0,0,0,0.94)",
-      tabTxt: "rgba(0,0,0,0.70)",
-      text: "rgba(0,0,0,0.90)",
-      text2: "rgba(0,0,0,0.62)",
-      valid: "rgba(46, 160, 67, 0.95)",
-      validGlow: "rgba(46, 160, 67, 0.14)",
-    };
-
-    const p = isLight ? lightPal : dark;
-
     const rootVars = `
-      --ed-radius-panel:18px;
-      --ed-radius-row:16px;
-      --ed-radius-input:12px;
-      --ed-radius-pill:999px;
-      --ed-space-1:8px;
-      --ed-space-2:12px;
-      --ed-space-3:16px;
-      --ed-space-4:20px;
-      --ed-shadow-soft:0 8px 24px rgba(0,0,0,0.10);
-      --ed-shadow-float:0 14px 36px rgba(0,0,0,0.18);
+      --ed-radius-panel: 18px;
+      --ed-radius-row: 16px;
+      --ed-radius-input: 12px;
+      --ed-radius-pill: 999px;
+      --ed-space-1: 8px;
+      --ed-space-2: 12px;
+      --ed-space-3: 16px;
+      --ed-space-4: 20px;
 
-      --ed-arrow:${p.arrow};
-      --ed-chip-bg:${p.chipBg};
-      --ed-chip-border:${p.chipBorder};
-      --ed-chip-disabled:${p.chipDisabled};
-      --ed-chip-icon-bg:${p.chipIconBg};
-      --ed-chip-on-bg:${p.chipOnBg};
-      --ed-chip-on-border:${p.chipOnBorder};
-      --ed-chip-on-icon-bg:${p.chipOnIconBg};
-      --ed-chip-on-txt:${p.chipOnTxt};
-      --ed-chip-txt:${p.chipTxt};
-      --ed-focus-ring:${p.focusRing};
-      --ed-input-bg:${p.inputBg};
-      --ed-input-border:${p.inputBorder};
-      --ed-invalid:${p.invalid};
-      --ed-invalid-glow:${p.invalidGlow};
-      --ed-muted:${p.muted};
-      --ed-pill-bg:${p.pillBg};
-      --ed-pill-border:${p.pillBorder};
-      --ed-pill-txt:${p.pillTxt};
-      --ed-row-bg:${p.rowBg};
-      --ed-row-border:${p.rowBorder};
-      --ed-section-bg:${p.sectionBg};
-      --ed-section-border:${p.sectionBorder};
-      --ed-section-glow:${p.sectionGlow};
-      --ed-seg-bg:${p.segBg};
-      --ed-seg-border:${p.segBorder};
-      --ed-seg-on-bg:${p.segOnBg};
-      --ed-seg-on-txt:${p.segOnTxt};
-      --ed-seg-txt:${p.segTxt};
-      --ed-select-bg:${p.selectBg};
-      --ed-select-border:${p.selectBorder};
-      --ed-sugg-active:${p.suggActive};
-      --ed-sugg-bg:${p.suggBg};
-      --ed-sugg-border:${p.suggBorder};
-      --ed-sugg-hover:${p.suggHover};
-      --ed-tab-bg:${p.tabBg};
-      --ed-tab-border:${p.tabBorder};
-      --ed-tab-on-bg:${p.tabOnBg};
-      --ed-tab-on-border:${p.tabOnBorder};
-      --ed-tab-on-txt:${p.tabOnTxt};
-      --ed-tab-txt:${p.tabTxt};
-      --ed-text:${p.text};
-      --ed-text2:${p.text2};
-      --ed-valid:${p.valid};
-      --ed-valid-glow:${p.validGlow};
+      --ed-muted: var(--cgc-editor-muted-opacity, 0.60);
+
+      --ed-text: var(--primary-text-color, rgba(0,0,0,0.87));
+      --ed-text2: var(--secondary-text-color, rgba(0,0,0,0.60));
+
+      --ed-section-bg: var(--secondary-background-color, rgba(0,0,0,0.03));
+      --ed-section-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.12)) 55%,
+        transparent
+      );
+      --ed-section-glow: var(
+        --cgc-editor-section-glow,
+        0 1px 0 rgba(255,255,255,0.02) inset
+      );
+
+      --ed-row-bg: color-mix(
+        in srgb,
+        var(--secondary-background-color, rgba(0,0,0,0.03)) 60%,
+        transparent
+      );
+      --ed-row-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.12)) 48%,
+        transparent
+      );
+
+      --ed-input-bg: var(--secondary-background-color, rgba(0,0,0,0.04));
+      --ed-input-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.14)) 58%,
+        transparent
+      );
+
+      --ed-select-bg: var(--secondary-background-color, rgba(0,0,0,0.04));
+      --ed-select-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.14)) 58%,
+        transparent
+      );
+
+      --ed-seg-bg: var(--secondary-background-color, rgba(0,0,0,0.04));
+      --ed-seg-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.12)) 52%,
+        transparent
+      );
+      --ed-seg-txt: var(--secondary-text-color, rgba(0,0,0,0.60));
+      --ed-seg-on-bg: var(--primary-text-color, rgba(0,0,0,0.88));
+      --ed-seg-on-txt: var(--primary-background-color, rgba(255,255,255,0.98));
+
+      --ed-tab-bg: var(--secondary-background-color, rgba(0,0,0,0.03));
+      --ed-tab-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.12)) 52%,
+        transparent
+      );
+      --ed-tab-txt: var(--secondary-text-color, rgba(0,0,0,0.60));
+      --ed-tab-on-bg: color-mix(
+        in srgb,
+        var(--primary-color, #03a9f4) 14%,
+        var(--secondary-background-color, rgba(0,0,0,0.04))
+      );
+      --ed-tab-on-border: var(--primary-color, #03a9f4);
+      --ed-tab-on-txt: var(--primary-text-color, rgba(0,0,0,0.88));
+
+      --ed-chip-bg: var(--secondary-background-color, rgba(0,0,0,0.03));
+      --ed-chip-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.12)) 52%,
+        transparent
+      );
+      --ed-chip-disabled: 0.50;
+      --ed-chip-txt: var(--primary-text-color, rgba(0,0,0,0.88));
+      --ed-chip-icon-bg: color-mix(
+        in srgb,
+        var(--secondary-background-color, rgba(0,0,0,0.03)) 80%,
+        transparent
+      );
+      --ed-chip-on-bg: color-mix(
+        in srgb,
+        var(--primary-color, #03a9f4) 12%,
+        var(--secondary-background-color, rgba(0,0,0,0.03))
+      );
+      --ed-chip-on-border: var(--primary-color, #03a9f4);
+      --ed-chip-on-txt: var(--primary-text-color, rgba(0,0,0,0.92));
+      --ed-chip-on-icon-bg: color-mix(
+        in srgb,
+        var(--primary-color, #03a9f4) 18%,
+        transparent
+      );
+
+      --ed-pill-bg: var(--secondary-background-color, rgba(0,0,0,0.08));
+      --ed-pill-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.14)) 58%,
+        transparent
+      );
+      --ed-pill-txt: var(--primary-text-color, rgba(0,0,0,0.88));
+
+      --ed-sugg-bg: var(--card-background-color, #fff);
+      --ed-sugg-border: color-mix(
+        in srgb,
+        var(--divider-color, rgba(0,0,0,0.14)) 60%,
+        transparent
+      );
+      --ed-sugg-hover: var(--secondary-background-color, rgba(0,0,0,0.045));
+      --ed-sugg-active: color-mix(
+        in srgb,
+        var(--primary-color, #03a9f4) 10%,
+        var(--secondary-background-color, rgba(0,0,0,0.04))
+      );
+
+      --ed-arrow: var(--secondary-text-color, rgba(0,0,0,0.58));
+      --ed-focus-ring: color-mix(
+        in srgb,
+        var(--primary-color, #03a9f4) 20%,
+        transparent
+      );
+
+      --ed-valid: var(--success-color, rgba(46,160,67,0.95));
+      --ed-valid-glow: color-mix(
+        in srgb,
+        var(--success-color, rgba(46,160,67,0.95)) 20%,
+        transparent
+      );
+
+      --ed-invalid: var(--error-color, rgba(219,68,55,0.92));
+      --ed-invalid-glow: color-mix(
+        in srgb,
+        var(--error-color, rgba(219,68,55,0.92)) 20%,
+        transparent
+      );
+
+      --ed-warning: var(--warning-color, rgba(245,158,11,0.95));
+      --ed-warning-bg: color-mix(
+        in srgb,
+        var(--warning-color, rgba(245,158,11,0.95)) 10%,
+        transparent
+      );
+      --ed-warning-border: color-mix(
+        in srgb,
+        var(--warning-color, rgba(245,158,11,0.95)) 24%,
+        transparent
+      );
+      --ed-warning-icon-bg: color-mix(
+        in srgb,
+        var(--warning-color, rgba(245,158,11,0.95)) 14%,
+        transparent
+      );
+
+      --ed-success-bg: color-mix(
+        in srgb,
+        var(--success-color, rgba(46,160,67,0.95)) 10%,
+        transparent
+      );
+      --ed-success-border: color-mix(
+        in srgb,
+        var(--success-color, rgba(46,160,67,0.95)) 24%,
+        transparent
+      );
+      --ed-success-icon-bg: color-mix(
+        in srgb,
+        var(--success-color, rgba(46,160,67,0.95)) 14%,
+        transparent
+      );
+
+      --ed-shadow-soft: var(
+        --cgc-editor-shadow-soft,
+        0 8px 24px rgba(0,0,0,0.10)
+      );
+      --ed-shadow-float: var(
+        --cgc-editor-shadow-float,
+        0 14px 36px rgba(0,0,0,0.18)
+      );
+      --ed-shadow-press: var(
+        --cgc-editor-shadow-press,
+        0 6px 16px rgba(0,0,0,0.10)
+      );
+      --ed-shadow-chip: var(
+        --cgc-editor-shadow-chip,
+        0 8px 18px rgba(0,0,0,0.08)
+      );
+      --ed-shadow-modal: var(
+        --cgc-editor-shadow-modal,
+        0 24px 60px rgba(0,0,0,0.28)
+      );
+      --ed-backdrop: var(--cgc-editor-backdrop, rgba(0,0,0,0.68));
     `;
 
     const tabBtn = (key, label, icon) => `
@@ -1236,7 +1263,7 @@ class CameraGalleryCardEditor extends HTMLElement {
 
         .tabbar {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
           gap: 10px;
           padding: 10px;
           border-radius: var(--ed-radius-panel);
@@ -1269,7 +1296,7 @@ class CameraGalleryCardEditor extends HTMLElement {
             transform 0.18s ease,
             box-shadow 0.18s ease;
           min-width: 0;
-          box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+          box-shadow: var(--ed-section-glow);
         }
 
         .tabbtn:hover {
@@ -1287,9 +1314,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           background: var(--ed-tab-on-bg);
           border-color: var(--ed-tab-on-border);
           color: var(--ed-tab-on-txt);
-          box-shadow:
-            0 1px 0 rgba(255, 255, 255, 0.04) inset,
-            0 6px 16px rgba(0, 0, 0, 0.1);
+          box-shadow: var(--ed-shadow-press);
         }
 
         .tabpanel {
@@ -1307,7 +1332,6 @@ class CameraGalleryCardEditor extends HTMLElement {
           align-items: center;
           gap: 14px;
           padding-bottom: 14px;
-          border-bottom: 1px solid var(--ed-row-border);
           min-width: 0;
         }
 
@@ -1320,7 +1344,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           place-items: center;
           background: var(--ed-input-bg);
           border: 1px solid var(--ed-input-border);
-          box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+          box-shadow: var(--ed-section-glow);
         }
 
         .panelicon ha-icon {
@@ -1365,11 +1389,7 @@ class CameraGalleryCardEditor extends HTMLElement {
         }
 
         .row:hover {
-          border-color: color-mix(
-            in srgb,
-            var(--ed-row-border) 70%,
-            var(--ed-text2) 30%
-          );
+          border-color: var(--ed-row-border);
         }
 
         .row-head {
@@ -1385,6 +1405,44 @@ class CameraGalleryCardEditor extends HTMLElement {
           flex: 1 1 auto;
           display: grid;
           gap: 6px;
+        }
+
+        .row-inline {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .row-inline .lbl {
+          margin: 0;
+        }
+
+        .row-inline #bgcolor-host {
+          display: flex;
+          align-items: center;
+          flex: 0 0 auto;
+        }
+
+        #bgcolor {
+          width: 42px;
+          height: 28px;
+          padding: 0;
+          border: 1px solid var(--ed-input-border);
+          border-radius: 6px;
+          background: none;
+          cursor: pointer;
+          appearance: none;
+          -webkit-appearance: none;
+        }
+
+        #bgcolor::-webkit-color-swatch-wrapper {
+          padding: 0;
+        }
+
+        #bgcolor::-webkit-color-swatch {
+          border: none;
+          border-radius: 6px;
         }
 
         .lbl {
@@ -1444,19 +1502,19 @@ class CameraGalleryCardEditor extends HTMLElement {
             border-color 0.16s ease,
             box-shadow 0.16s ease,
             background 0.16s ease;
-          box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+          box-shadow: var(--ed-section-glow);
+        }
+
+        #stylevars {
+          font-weight: 500;
+          cursor: text;
+          user-select: text;
+          -webkit-user-select: text;
+          line-height: 1.5;
         }
 
         .field textarea::placeholder {
           color: color-mix(in srgb, var(--ed-text2) 82%, transparent);
-        }
-
-        .field textarea:hover {
-          border-color: color-mix(
-            in srgb,
-            var(--ed-input-border) 70%,
-            var(--ed-text2) 30%
-          );
         }
 
         .field textarea:focus {
@@ -1467,7 +1525,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           );
           box-shadow:
             0 0 0 3px var(--ed-focus-ring),
-            0 1px 0 rgba(255, 255, 255, 0.03) inset;
+            var(--ed-section-glow);
         }
 
         .field textarea:disabled {
@@ -1592,7 +1650,7 @@ class CameraGalleryCardEditor extends HTMLElement {
             border-color 0.16s ease,
             box-shadow 0.16s ease,
             background 0.16s ease;
-          box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+          box-shadow: var(--ed-section-glow);
         }
 
         .select:hover {
@@ -1603,6 +1661,54 @@ class CameraGalleryCardEditor extends HTMLElement {
           );
         }
 
+        .color-grid {
+          display: grid;
+          gap: 10px;
+        }
+
+        .color-row {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .color-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .color-row .lbl {
+          margin: 0;
+        }
+          
+        .color-reset {
+          appearance: none;
+          border: none;
+          background: none;
+          padding: 0;
+          margin-left: 4px;
+          width: 20px;
+          height: 20px;
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          color: var(--ed-text2);
+          opacity: 0.7;
+          transition: opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+        }
+
+        .color-reset:hover {
+          opacity: 1;
+          transform: rotate(-30deg);
+          color: var(--ed-text);
+        }
+
+        .color-reset ha-icon {
+          --mdc-icon-size: 16px;
+        }
+        
         .select:focus {
           border-color: color-mix(
             in srgb,
@@ -1611,7 +1717,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           );
           box-shadow:
             0 0 0 3px var(--ed-focus-ring),
-            0 1px 0 rgba(255, 255, 255, 0.03) inset;
+            var(--ed-section-glow);
         }
 
         .select:disabled {
@@ -1669,7 +1775,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           background: var(--ed-seg-on-bg);
           color: var(--ed-seg-on-txt);
           border-color: transparent;
-          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+          box-shadow: var(--ed-shadow-press);
         }
 
         .togrow {
@@ -1705,7 +1811,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           font-size: 12px;
           font-weight: 1000;
           color: var(--ed-pill-txt);
-          box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+          box-shadow: var(--ed-section-glow);
         }
 
         .muted {
@@ -1821,7 +1927,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           font-size: 13px;
           font-weight: 900;
           text-align: left;
-          box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+          box-shadow: var(--ed-section-glow);
         }
 
         .objchip:hover {
@@ -1832,7 +1938,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           background: var(--ed-chip-on-bg);
           border-color: var(--ed-chip-on-border);
           color: var(--ed-chip-on-txt);
-          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+          box-shadow: var(--ed-shadow-chip);
         }
 
         .objchip.disabled {
@@ -1893,6 +1999,27 @@ class CameraGalleryCardEditor extends HTMLElement {
           --mdc-icon-size: 18px;
           width: 18px;
           height: 18px;
+        }
+
+        .cgc-color {
+          width: 42px;
+          height: 28px;
+          padding: 0;
+          border: 1px solid var(--ed-input-border);
+          border-radius: 6px;
+          background: none;
+          cursor: pointer;
+          appearance: none;
+          -webkit-appearance: none;
+        }
+
+        .cgc-color::-webkit-color-swatch-wrapper {
+          padding: 0;
+        }
+
+        .cgc-color::-webkit-color-swatch {
+          border: none;
+          border-radius: 6px;
         }
 
         .objmeta {
@@ -1964,29 +2091,29 @@ class CameraGalleryCardEditor extends HTMLElement {
         }
 
         .live-status--ok {
-          background: rgba(46, 160, 67, 0.1);
-          border-color: rgba(46, 160, 67, 0.24);
+          background: var(--ed-success-bg);
+          border-color: var(--ed-success-border);
         }
 
         .live-status--ok .live-status-icon {
-          background: rgba(46, 160, 67, 0.14);
-          color: rgba(46, 160, 67, 0.95);
+          background: var(--ed-success-icon-bg);
+          color: var(--ed-valid);
         }
 
         .live-status--warn {
-          background: rgba(245, 158, 11, 0.1);
-          border-color: rgba(245, 158, 11, 0.24);
+          background: var(--ed-warning-bg);
+          border-color: var(--ed-warning-border);
         }
 
         .live-status--warn .live-status-icon {
-          background: rgba(245, 158, 11, 0.14);
-          color: rgba(245, 158, 11, 0.95);
+          background: var(--ed-warning-icon-bg);
+          color: var(--ed-warning);
         }
 
         .browser-backdrop {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.68);
+          background: var(--ed-backdrop);
           backdrop-filter: blur(10px) saturate(120%);
           -webkit-backdrop-filter: blur(10px) saturate(120%);
           z-index: 9998;
@@ -1999,11 +2126,11 @@ class CameraGalleryCardEditor extends HTMLElement {
           transform: translate(-50%, -50%);
           width: min(92vw, 760px);
           max-height: min(84vh, 760px);
-          background: rgba(24, 24, 28, 0.98);
+          background: var(--card-background-color, #fff);
           color: var(--ed-text);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid var(--ed-sugg-border);
           border-radius: 20px;
-          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
+          box-shadow: var(--ed-shadow-modal);
           z-index: 9999;
           display: grid;
           grid-template-rows: auto auto minmax(0, 1fr);
@@ -2166,6 +2293,41 @@ class CameraGalleryCardEditor extends HTMLElement {
           gap: 4px;
         }
 
+        .hint-block {
+          display: grid;
+          gap: 8px;
+          align-items: start;
+        }
+
+        .hint-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          color: var(--ed-text2);
+        }
+
+        .vars-list {
+          display: grid;
+          gap: 6px;
+          padding-left: 22px;
+        }
+
+        .vars-list div {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          line-height: 1.45;
+        }
+
+        .vars-list code {
+          opacity: 1;
+        }
+
+        .vars-list span {
+          color: var(--ed-text2);
+        }
+
         .browser-open-title {
           font-size: 13px;
           font-weight: 950;
@@ -2262,6 +2424,7 @@ class CameraGalleryCardEditor extends HTMLElement {
             ${tabBtn("viewer", "Viewer", "mdi:image-outline")}
             ${tabBtn("live", "Live", "mdi:video-outline")}
             ${tabBtn("thumbs", "Thumbnails", "mdi:view-grid-outline")}
+            ${tabBtn("styling", "Styling", "mdi:palette-outline")}
           </div>
 
           ${
@@ -2531,23 +2694,6 @@ class CameraGalleryCardEditor extends HTMLElement {
                     <span class="selarrow"></span>
                   </div>
                 </div>
-
-                <div class="row ${liveControlsDisabled ? "muted" : ""}">
-                  <div class="row-head">
-                    <div>
-                      <div class="lbl">Start in live mode</div>
-                      <div class="desc">Open the card in live mode by default</div>
-                    </div>
-
-                    <div class="togrow">
-                      <ha-switch
-                        id="livedefault"
-                        ${liveDefault ? "checked" : ""}
-                        ${liveControlsDisabled ? "disabled" : ""}
-                      ></ha-switch>
-                    </div>
-                  </div>
-                </div>
               `
                   : ``
               }
@@ -2640,6 +2786,45 @@ class CameraGalleryCardEditor extends HTMLElement {
           `
               : ``
           }
+
+          ${
+            this._activeTab === "styling"
+              ? `
+              <div class="tabpanel" data-panel="styling">
+                ${panelHead(
+                  "mdi:palette-outline",
+                  "Styling"
+                )}
+
+                <div class="row">
+                  <div class="color-grid">
+                    ${STYLE_COLOR_CONTROLS.map(
+                      (item) => `
+                        <div class="color-row">
+                          <div class="lbl">${item.label}</div>
+
+                          <div class="color-controls">
+                            <div id="${item.hostId}"></div>
+
+                            <button
+                              type="button"
+                              class="color-reset"
+                              data-reset="${item.variable}"
+                              title="Reset to default"
+                            >
+                              <ha-icon icon="mdi:backup-restore"></ha-icon>
+                            </button>
+                          </div>
+                        </div>
+                      `
+                    ).join("")}
+                  </div>
+                </div>
+              </div>
+            `
+              : ``
+          }
+
         </div>
       </div>
 
@@ -2647,6 +2832,45 @@ class CameraGalleryCardEditor extends HTMLElement {
     `;
 
     const $ = (id) => this.shadowRoot.getElementById(id);
+
+    const createColorPicker = (hostId, variable, value) => {
+      const host = $(hostId);
+      if (!host) return;
+
+      host.innerHTML = "";
+
+      const picker = document.createElement("input");
+      picker.type = "color";
+      picker.className = "cgc-color";
+
+      picker.value =
+        value && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)
+          ? value
+          : "#000000";
+
+      host.appendChild(picker);
+
+      picker.addEventListener("change", (e) => {
+        const color = e.target.value;
+
+        const current = String(this._config.style_variables || "");
+
+        const lines = current
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .filter((l) => !l.startsWith(variable));
+
+        lines.push(`${variable}: ${color};`);
+
+        this._config = this._stripAlwaysTrueKeys({
+          ...this._config,
+          style_variables: lines.join("\n"),
+        });
+
+        this._fire();
+      });
+    };
 
     const entitiesEl = $("entities");
     const mediaEl = $("mediasources");
@@ -2658,6 +2882,14 @@ class CameraGalleryCardEditor extends HTMLElement {
     const baropEl = $("barop");
     const barvalEl = $("barval");
     const livecamEl = $("livecam");
+
+    STYLE_COLOR_CONTROLS.forEach((item) => {
+      createColorPicker(
+        item.hostId,
+        item.variable,
+        this._getStyleVariableValue(item.variable)
+      );
+    });
 
     this._setControlValue(entitiesEl, entitiesText);
     this._setControlValue(mediaEl, mediaSourcesText);
@@ -2772,6 +3004,29 @@ class CameraGalleryCardEditor extends HTMLElement {
     this.shadowRoot.querySelectorAll("[data-objchip]").forEach((btn) => {
       btn.addEventListener("click", () => {
         this._toggleObjectFilter(btn.dataset.objchip);
+      });
+    });
+
+    /* COLOR RESET BUTTONS */
+    this.shadowRoot.querySelectorAll("[data-reset]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const variable = btn.dataset.reset;
+
+        const current = String(this._config.style_variables || "");
+
+        const lines = current
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .filter((l) => !l.startsWith(variable));
+
+        this._config = this._stripAlwaysTrueKeys({
+          ...this._config,
+          style_variables: lines.join("\n"),
+        });
+
+        this._fire();
+        this._scheduleRender();
       });
     });
 
@@ -2962,15 +3217,6 @@ class CameraGalleryCardEditor extends HTMLElement {
         return;
       }
       this._set("live_camera_entity", v);
-    });
-
-    $("livedefault")?.addEventListener("change", (e) => {
-      if (!this._isWebRTCAvailable()) {
-        e.target.checked = false;
-        return;
-      }
-
-      this._set("live_default", !!e.target.checked);
     });
 
     this.shadowRoot.querySelectorAll(".seg[data-pos]").forEach((btn) => {
@@ -3309,7 +3555,8 @@ class CameraGalleryCardEditor extends HTMLElement {
       !!(
         ae &&
         ae.matches?.(":focus") &&
-        (tag === "textarea" ||
+        (tag === "input" ||
+          tag === "textarea" ||
           tag === "select" ||
           tag === "button" ||
           tag === "ha-textfield" ||
@@ -3323,6 +3570,7 @@ class CameraGalleryCardEditor extends HTMLElement {
           id === "livecam" ||
           id === "maxmedia" ||
           id === "mediasources" ||
+          id === "stylevars" ||
           id === "thumb")
       );
 
