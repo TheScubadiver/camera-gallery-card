@@ -131,7 +131,7 @@ class CameraGalleryCard extends LitElement {
   }
 
   static async getConfigElement() {
-    await import("/local/camera-gallery-card/camera-gallery-card-editor.js");
+    await import("./camera-gallery-card-editor.js");
     return document.createElement("camera-gallery-card-editor");
   }
 
