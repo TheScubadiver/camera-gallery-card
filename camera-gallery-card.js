@@ -201,10 +201,7 @@ class CameraGalleryCard extends LitElement {
     this._liveSelectedCamera = "";
     this._liveMuted = false;
     this._liveFullscreen = false;
-    this._onFullscreenChange = () => {
-      this._liveFullscreen = !!document.fullscreenElement;
-      this.toggleAttribute("data-live-fs", this._liveFullscreen);
-    };
+    this._onFullscreenChange = () => {};
 
     this._ms = {
       key: "",
@@ -1118,17 +1115,17 @@ class CameraGalleryCard extends LitElement {
 
   _toggleLiveMute() {
     const video = this._findLiveVideo();
-    if (!video) return;
+    if (!video) {
+      console.warn("[CGC] mute: geen video element gevonden in shadow DOM");
+      return;
+    }
     video.muted = !video.muted;
     this._liveMuted = video.muted;
   }
 
-  async _toggleLiveFullscreen() {
-    if (!document.fullscreenElement) {
-      await this.requestFullscreen().catch(() => {});
-    } else {
-      await document.exitFullscreen().catch(() => {});
-    }
+  _toggleLiveFullscreen() {
+    this._liveFullscreen = !this._liveFullscreen;
+    this.toggleAttribute("data-live-fs", this._liveFullscreen);
   }
 
   _syncLiveMuted() {
@@ -1141,8 +1138,15 @@ class CameraGalleryCard extends LitElement {
       return false;
     };
     if (!trySync()) {
-      const t1 = setTimeout(() => { if (!trySync()) setTimeout(() => trySync(), 1500); }, 500);
-      void t1;
+      setTimeout(() => {
+        if (!trySync()) {
+          setTimeout(() => {
+            if (!trySync()) {
+              setTimeout(() => trySync(), 3000);
+            }
+          }, 2000);
+        }
+      }, 1000);
     }
   }
 
@@ -4350,7 +4354,14 @@ class CameraGalleryCard extends LitElement {
         position: relative;
       }
 
-      :host(:fullscreen) .root,
+      :host([data-live-fs]) {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 9999 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+      }
+
       :host([data-live-fs]) .root {
         display: flex;
         flex-direction: column;
@@ -4358,19 +4369,27 @@ class CameraGalleryCard extends LitElement {
         background: #000;
       }
 
-      :host(:fullscreen) .panel,
       :host([data-live-fs]) .panel {
         display: flex;
         flex-direction: column;
         flex: 1;
         min-height: 0;
+        border-radius: 0 !important;
       }
 
-      :host(:fullscreen) .preview,
       :host([data-live-fs]) .preview {
         flex: 1 !important;
         height: auto !important;
         min-height: 0;
+        border-radius: 0 !important;
+      }
+
+      :host([data-live-fs]) .divider,
+      :host([data-live-fs]) .objfilters,
+      :host([data-live-fs]) .tthumbs,
+      :host([data-live-fs]) .datepill,
+      :host([data-live-fs]) .seg {
+        display: none !important;
       }
 
       .panel {
