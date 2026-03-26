@@ -129,6 +129,8 @@ class CameraGalleryCard extends LitElement {
       _thumbMenuItem: { type: Object },
       _thumbMenuOpen: { type: Boolean },
       _viewMode: { type: String }, // "media" | "live"
+      _liveMuted: { type: Boolean },
+      _liveFullscreen: { type: Boolean },
     };
   }
 
@@ -197,6 +199,11 @@ class CameraGalleryCard extends LitElement {
     this._thumbMenuOpenedAt = 0;
     this._viewMode = "media";
     this._liveSelectedCamera = "";
+    this._liveMuted = true;
+    this._liveFullscreen = false;
+    this._onFullscreenChange = () => {
+      this._liveFullscreen = !!document.fullscreenElement;
+    };
 
     this._ms = {
       key: "",
@@ -220,8 +227,16 @@ class CameraGalleryCard extends LitElement {
     this._observedThumbs = new WeakSet();
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener("fullscreenchange", this._onFullscreenChange);
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
+
+    document.removeEventListener("fullscreenchange", this._onFullscreenChange);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 
     if (this._liveQuickSwitchTimer) clearTimeout(this._liveQuickSwitchTimer);
     if (this._navHideT) clearTimeout(this._navHideT);
@@ -1083,6 +1098,40 @@ class CameraGalleryCard extends LitElement {
     this.requestUpdate();
   }
 
+  _findLiveVideo() {
+    const host = this.renderRoot?.querySelector("#live-card-host");
+    if (!host) return null;
+    const search = (root) => {
+      const video = root.querySelector("video");
+      if (video) return video;
+      for (const el of root.querySelectorAll("*")) {
+        if (el.shadowRoot) {
+          const found = search(el.shadowRoot);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    return search(host);
+  }
+
+  _toggleLiveMute() {
+    const video = this._findLiveVideo();
+    if (!video) return;
+    video.muted = !video.muted;
+    this._liveMuted = video.muted;
+  }
+
+  async _toggleLiveFullscreen() {
+    const stage = this.renderRoot?.querySelector(".live-stage");
+    if (!stage) return;
+    if (!document.fullscreenElement) {
+      await stage.requestFullscreen().catch(() => {});
+    } else {
+      await document.exitFullscreen().catch(() => {});
+    }
+  }
+
   async _mountLiveCard() {
     if (!this._isLiveActive()) return;
 
@@ -1165,6 +1214,25 @@ class CameraGalleryCard extends LitElement {
     return html`
       <div class="live-stage">
         ${this._renderLiveCardHost()}
+
+        <div class="live-ctrl-bar">
+          <button
+            class="live-ctrl-btn"
+            @click=${() => this._toggleLiveMute()}
+            title="${this._liveMuted ? "Unmute" : "Mute"}"
+            aria-label="${this._liveMuted ? "Unmute" : "Mute"}"
+          >
+            <ha-icon icon="${this._liveMuted ? "mdi:volume-off" : "mdi:volume-high"}"></ha-icon>
+          </button>
+          <button
+            class="live-ctrl-btn"
+            @click=${() => this._toggleLiveFullscreen()}
+            title="${this._liveFullscreen ? "Exit fullscreen" : "Fullscreen"}"
+            aria-label="${this._liveFullscreen ? "Exit fullscreen" : "Fullscreen"}"
+          >
+            <ha-icon icon="${this._liveFullscreen ? "mdi:fullscreen-exit" : "mdi:fullscreen"}"></ha-icon>
+          </button>
+        </div>
 
         ${this._renderLivePicker()}
       </div>
@@ -4349,6 +4417,33 @@ class CameraGalleryCard extends LitElement {
         object-fit: cover !important;
       }
 
+      .live-ctrl-bar {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        display: flex;
+        gap: 6px;
+        z-index: 20;
+      }
+
+      .live-ctrl-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.45);
+        color: #fff;
+        cursor: pointer;
+        padding: 0;
+        transition: background 0.15s;
+      }
+
+      .live-ctrl-btn:hover {
+        background: rgba(0, 0, 0, 0.65);
+      }
 
       .segbtn.livebtn {
         width: 60px;
