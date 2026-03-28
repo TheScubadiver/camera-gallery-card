@@ -19,7 +19,7 @@ const THUMB_SIZE = 86;
 
 const DEFAULT_ALLOW_BULK_DELETE = true;
 const DEFAULT_ALLOW_DELETE = true;
-const DEFAULT_BAR_OPACITY = 45;
+const DEFAULT_BAR_OPACITY = 30;
 const DEFAULT_BROWSE_TIMEOUT_MS = 8000;
 const DEFAULT_DELETE_CONFIRM = true;
 const DEFAULT_DELETE_PREFIX = "/config/www/";
@@ -40,6 +40,7 @@ const DEFAULT_WALK_DEPTH = 8;
 
 const DEFAULT_AUTOPLAY = false;
 const DEFAULT_AUTOMUTED = true;
+const DEFAULT_LIVE_AUTO_MUTED = true;
 
 const MAX_VISIBLE_OBJECT_FILTERS = 9;
 
@@ -185,6 +186,8 @@ class CameraGalleryCard extends LitElement {
     this._showLivePicker = false;
     this._showLiveQuickSwitch = false;
     this._showNav = false;
+    this._pillsVisible = false;
+    this._pillsTimer = null;
     this._srcEntityMap = new Map();
     this._suppressNextThumbClick = false;
     this._swipeStartX = 0;
@@ -700,6 +703,7 @@ class CameraGalleryCard extends LitElement {
 
   _getAllLiveCameraEntities() {
     const states = this._hass?.states || {};
+    const allowed = this.config?.live_camera_entities;
 
     return Object.keys(states)
       .filter((entityId) => entityId.startsWith("camera."))
@@ -709,6 +713,8 @@ class CameraGalleryCard extends LitElement {
 
         const state = String(st.state || "").toLowerCase();
         if (state === "unavailable" || state === "unknown") return false;
+
+        if (allowed?.length > 0 && !allowed.includes(entityId)) return false;
 
         return true;
       })
@@ -806,6 +812,36 @@ class CameraGalleryCard extends LitElement {
     }, 2500);
   }
 
+  _showPills() {
+    this._pillsVisible = true;
+    clearTimeout(this._pillsTimer);
+    this._pillsTimer = setTimeout(() => {
+      if (!this._showLivePicker) {
+        this._pillsVisible = false;
+        this.requestUpdate();
+      }
+    }, 2500);
+    this.requestUpdate();
+  }
+
+  _showPillsHover() {
+    clearTimeout(this._pillsTimer);
+    this._pillsTimer = null;
+    this._pillsVisible = true;
+    this.requestUpdate();
+  }
+
+  _hidePillsHover() {
+    if (this._showLivePicker) return;
+    clearTimeout(this._pillsTimer);
+    this._pillsTimer = setTimeout(() => {
+      if (!this._showLivePicker) {
+        this._pillsVisible = false;
+        this.requestUpdate();
+      }
+    }, 200);
+  }
+
   _hideBulkDeleteHint() {
     if (this._bulkHintTimer) {
       clearTimeout(this._bulkHintTimer);
@@ -881,6 +917,7 @@ class CameraGalleryCard extends LitElement {
       "preview_close_on_tap",
       "preview_height",
       "preview_position",
+      "pill_size",
       "thumb_bar_position",
       "thumb_layout",
       "thumb_size",
@@ -1024,6 +1061,7 @@ class CameraGalleryCard extends LitElement {
 
   _closeLivePicker() {
     this._showLivePicker = false;
+    this._liveCameraListCache = null;
     this.requestUpdate();
   }
 
@@ -1047,7 +1085,7 @@ class CameraGalleryCard extends LitElement {
     player.stateObj = this._hass?.states?.[entity];
     player.hass = this._hass;
     player.muted = true; // start muted zodat autoplay werkt; _syncLiveMuted unmute daarna
-    player.controls = true;
+    player.controls = false;
     player.style.cssText = "display:block;width:100%;height:100%;margin:0;object-fit:cover;";
 
     this._liveCard = player;
@@ -1056,11 +1094,11 @@ class CameraGalleryCard extends LitElement {
   }
 
   _getEffectiveLiveCamera() {
-    const options = this._getLiveCameraOptions();
     const selected = String(this._liveSelectedCamera || "").trim();
-    const preferred = String(this.config?.live_camera_entity || "").trim();
+    if (selected) return selected;
 
-    if (selected && options.includes(selected)) return selected;
+    const options = this._getLiveCameraOptions();
+    const preferred = String(this.config?.live_camera_entity || "").trim();
     if (preferred && options.includes(preferred)) return preferred;
     return options[0] || "";
   }
@@ -1108,30 +1146,23 @@ class CameraGalleryCard extends LitElement {
     this.toggleAttribute("data-live-fs", this._liveFullscreen);
   }
 
-  _applyLiveUnmute() {
-    if (this._liveMuted) return true; // gebruiker heeft handmatig gemutet, niet overschrijven
-    if (this._liveCard) this._liveCard.muted = false;
+  _applyLiveMuteState() {
+    const muted = this._liveMuted;
+    if (this._liveCard) this._liveCard.muted = muted;
     const video = this._findLiveVideo();
     if (video) {
-      video.muted = false;
-      video.controls = true;
-      video.setAttribute("playsinline", "");
-      // Sync _liveMuted wanneer gebruiker native controls gebruikt
-      if (!video._cgcVolumeSync) {
-        video._cgcVolumeSync = true;
-        video.addEventListener("volumechange", () => {
-          this._liveMuted = video.muted;
-        });
-      }
+      video.muted = muted;
     }
     return true;
   }
 
   _syncLiveMuted() {
-    this._applyLiveUnmute();
-    // Herhaal na 2s voor het geval ha-camera-stream intern opnieuw opbouwt
-    setTimeout(() => this._applyLiveUnmute(), 2000);
-    setTimeout(() => this._applyLiveUnmute(), 5000);
+    this._applyLiveMuteState();
+    // Alleen herhalen voor het unmute-geval: ha-camera-stream reset muted na stream connect
+    if (!this._liveMuted) {
+      setTimeout(() => this._applyLiveMuteState(), 2000);
+      setTimeout(() => this._applyLiveMuteState(), 5000);
+    }
   }
 
   async _mountLiveCard() {
@@ -1143,18 +1174,26 @@ class CameraGalleryCard extends LitElement {
     const card = await this._ensureLiveCard();
     if (!card) return;
 
-    if (card.parentElement !== host) {
+    const isNewMount = card.parentElement !== host;
+
+    if (isNewMount) {
       host.innerHTML = "";
       host.appendChild(card);
     }
 
     card.hass = this._hass;
-    if (card.stateObj !== undefined) {
-      const entity = this._getEffectiveLiveCamera();
-      card.stateObj = this._hass?.states?.[entity];
+    const entity = this._getEffectiveLiveCamera();
+    const newStateObj = this._hass?.states?.[entity];
+    if (newStateObj?.last_changed !== card.stateObj?.last_changed) {
+      card.stateObj = newStateObj;
     }
     this._injectLiveFillStyle(card);
-    this._syncLiveMuted();
+
+    if (isNewMount) {
+      // Alleen bij nieuwe mount muted state initialiseren vanuit config
+      this._liveMuted = this.config?.live_auto_muted !== false;
+      this._syncLiveMuted();
+    }
   }
 
   _injectLiveFillStyle(card) {
@@ -1213,6 +1252,7 @@ class CameraGalleryCard extends LitElement {
 
   _openLivePicker() {
     if (this._getLiveCameraOptions().length <= 1) return;
+    this._liveCameraListCache = this._getLiveCameraOptions();
     this._showLivePicker = true;
     this.requestUpdate();
   }
@@ -1244,7 +1284,7 @@ class CameraGalleryCard extends LitElement {
   }
 
   _renderLivePicker() {
-    const cams = this._getLiveCameraOptions();
+    const cams = this._liveCameraListCache || this._getLiveCameraOptions();
     if (!cams.length || !this._showLivePicker) return html``;
 
     const activeCam = this._getEffectiveLiveCamera();
@@ -1279,7 +1319,10 @@ class CameraGalleryCard extends LitElement {
               >
                 <div class="live-picker-item-left">
                   <ha-icon icon="mdi:video"></ha-icon>
-                  <span>${this._friendlyCameraName(cam)}</span>
+                  <div class="live-picker-item-name">
+                    <span>${this._friendlyCameraName(cam)}</span>
+                    <span class="live-picker-item-entity">${cam}</span>
+                  </div>
                 </div>
 
                 ${isOn
@@ -3110,6 +3153,7 @@ class CameraGalleryCard extends LitElement {
     this._pendingScrollToI = this._selectedIndex;
     this.requestUpdate();
     this._showNavChevrons();
+    this._showPills();
   }
 
   _navPrev() {
@@ -3120,6 +3164,7 @@ class CameraGalleryCard extends LitElement {
     this._pendingScrollToI = this._selectedIndex;
     this.requestUpdate();
     this._showNavChevrons();
+    this._showPills();
   }
 
   _onPreviewPointerDown(e) {
@@ -3158,6 +3203,7 @@ class CameraGalleryCard extends LitElement {
   _onPreviewPointerUp(e, listLen) {
     if (this._isLiveActive()) {
       this._swiping = false;
+      this._showPills();
       return;
     }
 
@@ -3165,6 +3211,7 @@ class CameraGalleryCard extends LitElement {
       if (this.config?.preview_click_to_open && !this._previewOpen) return;
       if (this._selectMode) return;
       this._showNavChevrons();
+      this._showPills();
       return;
     }
 
@@ -3179,6 +3226,7 @@ class CameraGalleryCard extends LitElement {
 
     if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
       this._showNavChevrons();
+      this._showPills();
       return;
     }
 
@@ -3197,6 +3245,7 @@ class CameraGalleryCard extends LitElement {
     this._pendingScrollToI = this._selectedIndex ?? 0;
     this.requestUpdate();
     this._showNavChevrons();
+    this._showPills();
   }
 
   _onThumbWheel(e) {
@@ -3244,6 +3293,11 @@ class CameraGalleryCard extends LitElement {
       config.auto_muted !== undefined
         ? !!config.auto_muted
         : DEFAULT_AUTOMUTED;
+
+    const live_auto_muted =
+      config.live_auto_muted !== undefined
+        ? !!config.live_auto_muted
+        : DEFAULT_LIVE_AUTO_MUTED;
 
     const filename_datetime_format = String(
       config.filename_datetime_format || ""
@@ -3400,11 +3454,20 @@ class CameraGalleryCard extends LitElement {
 
     const live_camera_entity = String(config.live_camera_entity || "").trim();
 
+    const live_camera_entities = Array.isArray(config.live_camera_entities)
+      ? config.live_camera_entities.map(String).map((s) => s.trim()).filter(Boolean)
+      : [];
+
     const style_variables = String(config.style_variables || "").trim();
+
+    const object_fit = config.object_fit === "contain" ? "contain" : "cover";
+
+    const pill_size = Math.max(10, Math.min(28, num(config.pill_size, 14)));
 
     const nextConfig = {
       autoplay,
       auto_muted,
+      live_auto_muted,
       allow_bulk_delete: effectiveAllowBulkDelete,
       allow_delete: effectiveAllowDelete,
       bar_opacity,
@@ -3415,6 +3478,7 @@ class CameraGalleryCard extends LitElement {
       entity: source_mode === "sensor" ? sensorEntitiesClean[0] || "" : "",
       entity_filter_map,
       filename_datetime_format,
+      live_camera_entities,
       live_camera_entity,
       live_enabled,
       max_media,
@@ -3428,6 +3492,8 @@ class CameraGalleryCard extends LitElement {
       preview_position,
       source_mode,
       style_variables,
+      object_fit,
+      pill_size,
       thumb_bar_position,
       thumb_layout,
       thumb_size,
@@ -3452,16 +3518,18 @@ class CameraGalleryCard extends LitElement {
     const visibleSet = new Set(this._getVisibleObjectFilters());
     this._objectFilters = this._objectFilters.filter((x) => visibleSet.has(x));
 
-    const liveOptions = this._getAllLiveCameraEntities();
-    const validSelected =
-      this._liveSelectedCamera &&
-      liveOptions.some((x) => x === this._liveSelectedCamera);
-
-    if (!validSelected) {
-      this._liveSelectedCamera =
-        (live_camera_entity && liveOptions.includes(live_camera_entity)
-          ? live_camera_entity
-          : liveOptions[0]) || "";
+    const liveEntityChanged = !prevConfig || prevConfig.live_camera_entity !== live_camera_entity;
+    if (liveEntityChanged) {
+      const liveOptions = this._getAllLiveCameraEntities();
+      const validSelected =
+        this._liveSelectedCamera &&
+        liveOptions.some((x) => x === this._liveSelectedCamera);
+      if (!validSelected && liveOptions.length > 0) {
+        this._liveSelectedCamera =
+          (live_camera_entity && liveOptions.includes(live_camera_entity)
+            ? live_camera_entity
+            : liveOptions[0]) || "";
+      }
     }
 
     if (!prevConfig) {
@@ -3822,6 +3890,8 @@ class CameraGalleryCard extends LitElement {
       --topbarMar:${STYLE.topbar_margin};
       --topbarPad:${STYLE.topbar_padding};
       --thumbsMaxHeight:${Math.max(160, Number(this.config.preview_height) || 320)}px;
+      --cgc-object-fit:${this.config.object_fit || "cover"};
+      --cgc-pill-size:${this.config.pill_size}px;
       ${this.config.style_variables || ""}
     `;
 
@@ -3836,6 +3906,7 @@ class CameraGalleryCard extends LitElement {
               
               // De check op _isInsideTsbar(e) vangt nu ook de nieuwe terugknop af
               const isOnControls =
+                this._isLiveActive() ||
                 this._isInsideTsbar(e) ||
                 this._pathHasClass(path, "pnavbtn") ||
                 path.some((el) => el?.tagName === "VIDEO") ||
@@ -3854,6 +3925,8 @@ class CameraGalleryCard extends LitElement {
             @pointermove=${(e) => { if (this._swiping && e.isPrimary !== false) { this._swipeCurX = e.clientX; this._swipeCurY = e.clientY; } }}
             @pointerup=${(e) => this._onPreviewPointerUp(e, filtered.length)}
             @pointercancel=${(e) => this._onPreviewPointerUp(e, filtered.length)}
+            @pointerenter=${(e) => { if (e.pointerType === "mouse") this._showPillsHover(); }}
+            @pointerleave=${(e) => { if (e.pointerType === "mouse") this._hidePillsHover(); }}
             @click=${(e) => this._onPreviewClick(e)}
           >
             ${isLive
@@ -3877,37 +3950,37 @@ class CameraGalleryCard extends LitElement {
               </div>
             ` : html``}
 
-            ${tsPosClass !== "hidden" ? html`
-              <div class="tsbar ${tsPosClass}">
-                ${!isLive ? html`
-                  ${previewGated && previewOpen ? html`
-                    <button class="tspill tspill-left tsbar-back-btn" style="pointer-events:auto;" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => {
-                      e.stopPropagation();
-                      this._previewOpen = false;
-                      this.requestUpdate();
-                    }}>
-                      <ha-icon icon="mdi:arrow-left"></ha-icon>
-                    </button>
-                  ` : (() => { const obj = selected ? this._objectForSrc(selected) : null; const icon = obj ? this._objectIcon(obj) : ""; const color = obj ? this._objectColor(obj) : ""; return icon ? html`<div class="tspill tspill-left"><ha-icon icon="${icon}" style="color:${color}"></ha-icon></div>` : html``; })()}
-                  <div class="tsleft">${tsLabel || "—"}</div>
-                  <div class="tspill">
-                    <span class="tspill-val">${idx + 1}/${filtered.length}</span>
-                  </div>
-                ` : html`
-                  <button class="tspill tspill-left tsbar-back-btn" style="pointer-events:auto;" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => { e.stopPropagation(); this._setViewMode("media"); this._previewOpen = false; this.requestUpdate(); }}>
+            ${!isLive && tsPosClass !== "hidden" ? html`
+              <div class="gallery-pills ${tsPosClass} ${this._pillsVisible ? "visible" : ""}">
+                ${previewGated && previewOpen ? html`
+                  <button class="gallery-pill live-pill-btn" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => { e.stopPropagation(); this._setViewMode("media"); this._previewOpen = false; this.requestUpdate(); }}>
                     <ha-icon icon="mdi:arrow-left"></ha-icon>
                   </button>
-                  <div class="tsbar-live-center">
-                    ${this._getLiveCameraOptions().length > 1 ? html`
-                      <button class="tsbar-cam-btn" style="pointer-events:auto;" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => { e.stopPropagation(); this._openLivePicker(); }}>
-                        <ha-icon icon="mdi:video-switch"></ha-icon>
-                      </button>
-                    ` : html``}
-                  </div>
-                  <div class="tspill">
-                    <span class="tspill-val">${this._friendlyCameraName(this._getEffectiveLiveCamera())}</span>
-                  </div>
-                `}
+                ` : html``}
+                ${(() => {
+                  const obj = this._objectForSrc(selected);
+                  const icon = obj ? this._objectIcon(obj) : null;
+                  if (!icon) return html``;
+                  return html`<div class="gallery-pill"><ha-icon icon="${icon}"></ha-icon></div>`;
+                })()}
+                <div class="gallery-pill"><span>${idx + 1}/${filtered.length}</span></div>
+              </div>
+            ` : isLive ? html`
+              <div class="gallery-pills top ${this._pillsVisible || this._showLivePicker ? "visible" : ""}">
+                ${previewGated ? html`
+                  <button class="gallery-pill live-pill-btn" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => { e.stopPropagation(); this._setViewMode("media"); this._previewOpen = false; this.requestUpdate(); }}>
+                    <ha-icon icon="mdi:arrow-left"></ha-icon>
+                  </button>
+                ` : html``}
+                <button class="gallery-pill live-pill-btn" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => { e.stopPropagation(); this._toggleLiveMute(); }}>
+                  <ha-icon icon=${this._liveMuted ? "mdi:volume-off" : "mdi:volume-high"}></ha-icon>
+                </button>
+                <div class="gallery-pill"><span>${this._friendlyCameraName(this._getEffectiveLiveCamera())}</span></div>
+                ${this._getLiveCameraOptions().length > 1 ? html`
+                  <button class="gallery-pill live-pill-btn" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => { e.stopPropagation(); this._openLivePicker(); }}>
+                    <ha-icon icon="mdi:cctv"></ha-icon>
+                  </button>
+                ` : html``}
               </div>
             ` : html``}
           </div>
@@ -4322,6 +4395,7 @@ class CameraGalleryCard extends LitElement {
         --cgc-ts-g: 0;
         --cgc-ts-b: 0;
         --cgc-tsbar-txt: #fff;
+        --cgc-pill-bg: #000;
       }
 
       @media (prefers-color-scheme: dark) {
@@ -4416,7 +4490,7 @@ class CameraGalleryCard extends LitElement {
       .pimg {
         display: block;
         height: 100%;
-        object-fit: cover;
+        object-fit: var(--cgc-object-fit, cover);
         width: 100%;
         pointer-events: none;
       }
@@ -4509,6 +4583,7 @@ class CameraGalleryCard extends LitElement {
       }
 
       .live-picker {
+        position: relative;
         position: absolute;
         left: 50%;
         top: 50%;
@@ -4525,6 +4600,24 @@ class CameraGalleryCard extends LitElement {
 
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
+      }
+
+      .live-picker::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--cgc-pill-bg, #000);
+        opacity: calc(var(--barOpacity, 30) / 100);
+        backdrop-filter: blur(4px);
+        z-index: 0;
+        pointer-events: none;
+        border-radius: inherit;
+      }
+
+      .live-picker-head,
+      .live-picker-list {
+        position: relative;
+        z-index: 1;
       }
 
       .live-picker-head {
@@ -4661,13 +4754,27 @@ class CameraGalleryCard extends LitElement {
         flex: 0 0 auto;
       }
 
-      .live-picker-item-left span {
+      .live-picker-item-name {
+        display: flex;
+        flex-direction: column;
         min-width: 0;
+      }
+
+      .live-picker-item-name span {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .live-picker-item-name span:first-child {
         font-size: 15px;
         font-weight: 800;
+      }
+
+      .live-picker-item-entity {
+        font-size: 11px;
+        font-weight: 500;
+        opacity: 0.55;
       }
 
       .live-picker-check {
@@ -4830,6 +4937,85 @@ class CameraGalleryCard extends LitElement {
 
       .tsbar.bottom {
         bottom: 0;
+      }
+
+      .gallery-pills {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        pointer-events: none;
+        z-index: 10;
+      }
+      .gallery-pills.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .gallery-pills:not(.visible) .live-pill-btn {
+        pointer-events: none;
+      }
+      .gallery-pills.top {
+        top: 8px;
+      }
+      .gallery-pills.bottom {
+        bottom: 8px;
+      }
+      .gallery-pill {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: calc(var(--cgc-pill-size, 14px) * 0.28);
+        padding: calc(var(--cgc-pill-size, 14px) * 0.3) calc(var(--cgc-pill-size, 14px) * 0.65);
+        color: var(--cgc-tsbar-txt, #fff);
+        font-size: var(--cgc-pill-size, 14px);
+        font-weight: 700;
+        border-radius: 999px;
+        line-height: 1;
+        position: relative;
+        white-space: nowrap;
+      }
+      .gallery-pill::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: var(--cgc-pill-bg, #000);
+        opacity: calc(var(--barOpacity, 30) / 100);
+        backdrop-filter: blur(4px);
+        pointer-events: none;
+      }
+      .gallery-pill ha-icon,
+      .gallery-pill span {
+        position: relative;
+        z-index: 1;
+      }
+      .gallery-pill span {
+        display: block;
+        font-size: calc(var(--cgc-pill-size, 14px) - 2px);
+        line-height: 1;
+      }
+      .gallery-pill ha-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        line-height: 0;
+        --ha-icon-size: calc(var(--cgc-pill-size, 14px) + 2px);
+        --mdc-icon-size: calc(var(--cgc-pill-size, 14px) + 2px);
+        width: calc(var(--cgc-pill-size, 14px) + 2px);
+        height: calc(var(--cgc-pill-size, 14px) + 2px);
+      }
+      .live-pill-btn {
+        pointer-events: auto;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        padding: calc(var(--cgc-pill-size, 14px) * 0.3);
+        margin: 0;
       }
 
       .tsleft {
@@ -5112,10 +5298,12 @@ class CameraGalleryCard extends LitElement {
 
       .tbar.bottom {
         bottom: 0;
+        border-radius: 0 0 var(--cgc-thumb-radius, 10px) var(--cgc-thumb-radius, 10px);
       }
 
       .tbar.top {
         top: 0;
+        border-radius: var(--cgc-thumb-radius, 10px) var(--cgc-thumb-radius, 10px) 0 0;
       }
 
       .tbar.hidden {
