@@ -2,7 +2,7 @@
 
 Custom **Home Assistant Lovelace card** for browsing camera media in a clean **timeline-style gallery** with preview player, object filters, optional live view, and a built-in visual editor.
 
-**Current version:** `v2.0.1`
+**Current version:** `v2.1.0`
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/1c71ada8-98bb-435e-bbc6-b6974186c2e0" width="48%" />
@@ -70,11 +70,19 @@ FileTrack is a fork of the archived [files integration by TarheelGrad1998](https
 ### Live view
 
 - Native Home Assistant **WebRTC live preview**
-- Redesigned live view layout
+- Redesigned live view layout: camera name on the left, controls on the right
+- Native fullscreen button (iOS + Android/desktop)
 - Live badge
 - Camera switching with configurable picker
 - Default live camera
 - Camera friendly names and entity IDs in selector
+
+### Thumbnails
+
+- Automatic frame capture for **all** video sources in media source mode
+  - Frigate cameras: Frigate snapshot
+  - All other sources (NAS, Reolink, Blue Iris, etc.): first-frame capture
+- Sensor mode: first-frame capture
 
 ### Video controls
 
@@ -235,9 +243,9 @@ Object filter colors can be assigned per filter type in the editor.
 
 ---
 
-## Filename parsing
+## Filename & path parsing
 
-The card extracts timestamps from filenames for sorting, day grouping, preview timestamps, and thumbnail labels.
+The card extracts timestamps from filenames and folder paths for sorting, day grouping, preview timestamps, and thumbnail labels.
 
 Example supported formats:
 ```
@@ -245,6 +253,17 @@ Example supported formats:
 20260309_123110_person.jpg
 clip-1741512345-person.mp4
 ```
+
+### Folder-based date format
+
+Some NVR systems (Reolink, Blue Iris, NAS) store recordings in day-based folders:
+
+```
+/media/recordings/20260314/173154.mp4
+                  └─date─┘ └─time─┘
+```
+
+The card automatically recognises this `YYYYMMDD/HHMMSS` pattern — no extra configuration needed.
 
 A custom format can be set in the editor using these tokens:
 
