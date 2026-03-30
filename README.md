@@ -5,8 +5,8 @@ Custom **Home Assistant Lovelace card** for browsing camera media in a clean **t
 **Current version:** `v2.1.0`
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/1c71ada8-98bb-435e-bbc6-b6974186c2e0" width="48%" />
-  <img src="https://github.com/user-attachments/assets/40caf878-bc55-4cfd-9381-3a353785acf3" width="48%" />
+  <img src="https://github.com/user-attachments/assets/1c71ada8-98bb-435e-bbc6-b6974186c2e0" width="30%" />
+  <img src="https://github.com/user-attachments/assets/40caf878-bc55-4cfd-9381-3a353785acf3" width="30%" />
 </p>
 
 ---
