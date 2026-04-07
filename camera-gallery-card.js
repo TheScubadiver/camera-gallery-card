@@ -2,7 +2,7 @@
  * Camera Gallery Card
  */
 
-const CARD_VERSION = "2.3.1";
+const CARD_VERSION = "2.4.0";
 
 // -------- HARD CODED SETTINGS --------
 const ATTR_NAME = "fileList";
