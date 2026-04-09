@@ -21,7 +21,7 @@ Custom **Home Assistant Lovelace card** for browsing camera media in a clean **t
 2. Click **Download**
 3. Restart Home Assistant
 
-### FileTrack (optional – for sensor mode)
+### FileTrack (for sensor mode)
 
 > **Using sensor mode?** Follow the steps below to set up your file sensors.
 
