@@ -11,6 +11,24 @@ Custom **Home Assistant Lovelace card** for browsing camera media in a clean **t
 
 ---
 
+## Choose your mode
+
+Before installing, you need to decide how the card will read your media files. The card supports two different modes depending on your setup:
+
+### 1. Media Source Mode
+Uses Home Assistant's native Media Source integration.
+* Ideal for most users, Frigate setups, and standard local media folders.
+* Works directly with anything available in your Home Assistant Media Browser without extra integrations or YAML configuration.
+* Limited to the folders and integrations explicitly exposed to the HA Media Source.
+
+### 2. Sensor Mode
+Reads a `fileList` attribute from a custom sensor (using FileTrack or YAML).
+* Ideal for custom folder structures, external NAS mounts, or users who want strict control over which files are scanned.
+* Highly flexible, as it can scan any folder path accessible to your Home Assistant instance.
+* Requires installing an additional custom integration (FileTrack) or configuring sensors manually in your `configuration.yaml`.
+
+---
+
 ## Installation
 
 ### HACS (Recommended)
