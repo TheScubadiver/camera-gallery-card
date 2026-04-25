@@ -4509,13 +4509,22 @@ class CameraGalleryCard extends LitElement {
 
     let effectiveAllowDelete = allow_delete;
     let effectiveAllowBulkDelete = allow_bulk_delete;
+    let effectiveDeleteService = delete_service;
 
     if (wantsDelete && !delete_service) {
       effectiveAllowBulkDelete = false;
       effectiveAllowDelete = false;
     }
 
-    if (delete_service && !/^[a-z0-9_]+\.[a-z0-9_]+$/i.test(delete_service)) {
+    // Delete only works in sensor mode — _toFsPath() can't map media-source
+    // URIs to a filesystem path the shell command can act on.
+    if (source_mode !== "sensor") {
+      effectiveAllowDelete = false;
+      effectiveAllowBulkDelete = false;
+      effectiveDeleteService = "";
+    }
+
+    if (effectiveDeleteService && !/^[a-z0-9_]+\.[a-z0-9_]+$/i.test(effectiveDeleteService)) {
       throw new Error(
         "camera-gallery-card: 'delete_service' must be 'domain.service'"
       );
@@ -4573,7 +4582,7 @@ class CameraGalleryCard extends LitElement {
       bar_opacity,
       bar_position,
       delete_confirm,
-      delete_service: delete_service || "",
+      delete_service: effectiveDeleteService || "",
       entities: source_mode === "sensor" ? sensorEntitiesClean : [],
       entity: source_mode === "sensor" ? sensorEntitiesClean[0] || "" : "",
       entity_filter_map,
@@ -8609,21 +8618,26 @@ class CameraGalleryCardEditor extends HTMLElement {
                 </details>
               </div>
 
-              <div class="row">
+              <div class="row ${mediaModeOn ? "row-disabled" : ""}">
                 <div class="lbl">Delete service</div>
                 <div class="hint">
-                  <ha-icon icon="mdi:help-circle-outline"></ha-icon>
-                  <a
-                    href="https://github.com/TheScubadiver/camera-gallery-card?tab=readme-ov-file#delete-setup"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    How to configure the shell command
-                  </a>
+                  ${sensorModeOn ? `
+                    <ha-icon icon="mdi:help-circle-outline"></ha-icon>
+                    <a
+                      href="https://github.com/TheScubadiver/camera-gallery-card?tab=readme-ov-file#delete-setup"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      How to configure the shell command
+                    </a>
+                  ` : `
+                    <ha-icon icon="mdi:information-outline"></ha-icon>
+                    <span>Delete is only available in <strong>File sensor</strong> mode. Media-source items don't map to filesystem paths the shell command can delete — switch the source above to enable.</span>
+                  `}
                 </div>
 
                 <div class="selectwrap">
-                  <select class="select ${deleteOk ? "" : "invalid"}" id="delservice">
+                  <select class="select ${deleteOk ? "" : "invalid"}" id="delservice" ${mediaModeOn ? "disabled" : ""}>
                     ${
                       deleteChoices.length
                         ? `<option value=""></option>` +
@@ -9195,6 +9209,14 @@ class CameraGalleryCardEditor extends HTMLElement {
 
         .row:hover {
           border-color: var(--ed-row-border);
+        }
+
+        .row-disabled {
+          opacity: 0.6;
+        }
+
+        .row-disabled .lbl {
+          color: var(--ed-text2);
         }
 
         .row-head {
@@ -10633,9 +10655,19 @@ class CameraGalleryCardEditor extends HTMLElement {
     });
 
     this.shadowRoot.querySelectorAll("[data-src]").forEach((btn) => {
-      btn.addEventListener("click", () =>
-        this._set("source_mode", btn.dataset.src)
-      );
+      btn.addEventListener("click", () => {
+        const next = btn.dataset.src;
+        if (next !== "sensor") {
+          const cleaned = { ...this._config };
+          delete cleaned.delete_service;
+          delete cleaned.shell_command;
+          delete cleaned.allow_delete;
+          delete cleaned.allow_bulk_delete;
+          delete cleaned.delete_confirm;
+          this._config = this._stripAlwaysTrueKeys(cleaned);
+        }
+        this._set("source_mode", next);
+      });
     });
 
     const browseBtn = $("browse-media-folders");
