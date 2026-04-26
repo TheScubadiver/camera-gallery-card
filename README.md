@@ -156,13 +156,18 @@ The **Styling** tab provides a visual editor for colors and border radius.
 
 ## Delete setup
 
+> [!IMPORTANT]
+> Delete is not available in `source_mode: media`. In media mode the option is hidden in the thumbnail menu and disabled in the editor — media-source items (Frigate, network shares, etc.) don't map to filesystem paths the shell command can delete.
+
 > [!TIP]
 > To enable delete actions, configure a shell command in Home Assistant and provide the service name in the card editor under **General → Delete service**.
 
 > [!IMPORTANT]
 > Delete is only supported in **sensor mode**. Media source and combined mode do not support delete actions.
+Optional delete options (YAML only — not currently exposed in the editor):
 
-Optional delete options are available via YAML:
+- `delete_confirm: false` — skip the confirmation dialog
+- `allow_bulk_delete: true` — enable multi-select bulk delete
 
 - `delete_confirm` — confirm before deleting
 - `allow_bulk_delete` — enable bulk delete
