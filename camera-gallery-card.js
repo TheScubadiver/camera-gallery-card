@@ -1701,7 +1701,7 @@ class CameraGalleryCard extends LitElement {
 
   _setupAutoAspectRatio() {
     if (this._autoAspectObs) {
-      this._autoAspectObs.disconnect();
+      clearInterval(this._autoAspectObs);
       this._autoAspectObs = null;
     }
     this._autoAspectVideo = null;
@@ -1729,16 +1729,14 @@ class CameraGalleryCard extends LitElement {
     };
 
     if (!tryBind()) {
-      const host = this.renderRoot?.querySelector("#live-card-host");
-      if (!host) return;
-      this._autoAspectObs = new MutationObserver(() => {
-        if (tryBind()) {
-          this._autoAspectObs.disconnect();
+      let elapsed = 0;
+      this._autoAspectObs = setInterval(() => {
+        elapsed += 500;
+        if (tryBind() || elapsed >= 10000) {
+          clearInterval(this._autoAspectObs);
           this._autoAspectObs = null;
         }
-      });
-      this._autoAspectObs.observe(host, { childList: true, subtree: true });
-      setTimeout(() => { if (this._autoAspectObs) { this._autoAspectObs.disconnect(); this._autoAspectObs = null; } }, 10000);
+      }, 500);
     }
   }
 
@@ -1747,17 +1745,6 @@ class CameraGalleryCard extends LitElement {
     return map[val] || "16/9";
   }
 
-  _toggleAspectRatio() {
-    const cycle = ["16/9", "4/3", "1/1"];
-    const next = cycle[(cycle.indexOf(this._aspectRatio) + 1) % cycle.length];
-    this._aspectRatio = next;
-    this.requestUpdate();
-  }
-
-  _aspectRatioLabel() {
-    const map = { "16/9": "16:9", "4/3": "4:3", "1/1": "1:1" };
-    return map[this._aspectRatio] || "16:9";
-  }
 
   _isLiveFullscreen() {
     return this._isLiveActive() && (
@@ -1919,7 +1906,7 @@ class CameraGalleryCard extends LitElement {
     console.error("[CGC] Mic error:", msg);
     try {
       this._hass.callService("persistent_notification", "create", {
-        title: "CGC mic fout",
+        title: "CGC mic error",
         message: msg,
         notification_id: "cgc_mic_error"
       });
@@ -2056,9 +2043,8 @@ class CameraGalleryCard extends LitElement {
       this._injectLiveFillStyle(card);
       this._liveMuted = this.config?.live_auto_muted !== false;
       this._syncLiveMuted();
+      this._setupAutoAspectRatio();
     }
-
-    this._setupAutoAspectRatio();
   }
 
   async _warmupLiveCard() {
@@ -2340,6 +2326,7 @@ class CameraGalleryCard extends LitElement {
       this._hideLiveQuickSwitchButton();
       this._showLivePicker = false;
       this._resetZoom();
+      this._aspectRatio = this._parseAspectRatio(this.config?.aspect_ratio);
     }
 
     this.requestUpdate();
@@ -5386,9 +5373,6 @@ class CameraGalleryCard extends LitElement {
     `;
     const livePillsRight = html`
       <div class="live-pills-right">
-        <button class="gallery-pill live-pill-btn" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => { e.stopPropagation(); this._toggleAspectRatio(); }}>
-          <span>${this._aspectRatioLabel()}</span>
-        </button>
         ${this.config?.live_go2rtc_stream ? html`
           <button class="gallery-pill live-pill-btn ${this._liveMicActive ? "active" : ""} ${this._micErrorMsg ? "mic-error" : ""}" @pointerdown=${(e) => e.stopPropagation()} @click=${(e) => { e.stopPropagation(); this._toggleMic(); }} title=${this._micErrorMsg || ""}>
             <ha-icon icon=${this._micErrorMsg ? "mdi:microphone-message-off" : this._liveMicActive ? "mdi:microphone" : "mdi:microphone-off"}></ha-icon>
@@ -5472,10 +5456,10 @@ class CameraGalleryCard extends LitElement {
               }
               this._onPreviewPointerDown(e);
             }}
-            @pointermove=${(e) => { if (this._swiping && e.isPrimary !== false) { this._swipeCurX = e.clientX; this._swipeCurY = e.clientY; } }}
+            @pointermove=${(e) => { if (e.pointerType === "mouse" && !this._swiping) { this._showNavChevrons(); } if (this._swiping && e.isPrimary !== false) { this._swipeCurX = e.clientX; this._swipeCurY = e.clientY; } }}
             @pointerup=${(e) => this._onPreviewPointerUp(e, filtered.length)}
             @pointercancel=${(e) => this._onPreviewPointerUp(e, filtered.length)}
-            @pointerenter=${(e) => { if (e.pointerType === "mouse") this._showPillsHover(); }}
+            @pointerenter=${(e) => { if (e.pointerType === "mouse") { this._showPillsHover(); this._showNavChevrons(); } }}
             @pointerleave=${(e) => { if (e.pointerType === "mouse") this._hidePillsHover(); }}
             @click=${(e) => this._onPreviewClick(e)}
           >
@@ -6067,11 +6051,12 @@ class CameraGalleryCard extends LitElement {
         border-radius: var(--r);
         box-sizing: border-box;
         padding: var(--cardPad, 10px 12px);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
       .divider {
-        height: 1px;
-        background: transparent;
-        margin: 6px 0;
+        display: none;
       }
 
       .preview {
@@ -6301,7 +6286,7 @@ class CameraGalleryCard extends LitElement {
       .tthumbs-wrap {
         width: 100%;
         box-sizing: border-box;
-        margin-top: 10px;
+        margin-top: 0;
       }
 
       .tthumbs-wrap.horizontal {
@@ -6550,16 +6535,17 @@ class CameraGalleryCard extends LitElement {
         width: 44px;
         height: 44px;
         border-radius: 999px;
-        border: 1px solid var(--cgc-nav-border);
-        background: var(--cgc-nav-bg);
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
-        color: var(--cgc-txt);
+        border: 1px solid rgba(255,255,255,0.3);
+        background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.28) 100%);
+        backdrop-filter: blur(16px) saturate(180%);
+        -webkit-backdrop-filter: blur(16px) saturate(180%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+        color: #fff;
         display: grid;
         place-items: center;
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
-        opacity: calc(var(--barOpacity, 30) / 100);
+        opacity: 0.9;
       }
 
       .pnavbtn[disabled] {
@@ -6643,7 +6629,7 @@ class CameraGalleryCard extends LitElement {
         flex-direction: row;
         align-items: stretch;
         padding: 0;
-        margin: 6px 0;
+        margin: 0;
         gap: 6px;
         position: relative;
       }
@@ -7049,7 +7035,7 @@ class CameraGalleryCard extends LitElement {
         display: flex;
         align-items: center;
         gap: var(--tgap, 12px);
-        margin-top: 10px;
+        margin-top: 0;
         margin-bottom: 0;
         overflow-x: auto;
         overflow-y: hidden;
@@ -7067,7 +7053,7 @@ class CameraGalleryCard extends LitElement {
         grid-template-columns: repeat(3, minmax(0, 1fr));
         align-items: start;
         gap: var(--tgap, 12px);
-        margin-top: 10px;
+        margin-top: 0;
         margin-bottom: 0;
         width: 100%;
         max-height: var(--thumbsMaxHeight, 320px);
@@ -7233,7 +7219,7 @@ class CameraGalleryCard extends LitElement {
       }
 
       .bulkbar {
-        margin: 10px 0 0 0;
+        margin: 0;
         padding: 8px 10px;
         height: 28px;
         border-radius: 12px;
@@ -9240,23 +9226,18 @@ class CameraGalleryCardEditor extends HTMLElement {
               </div>
 
               <div class="row">
-                <div class="row-head">
-                  <div>
-                    <div class="lbl">Controls positie</div>
-                    <div class="desc">Overlay op de viewer of vaste balk eronder.</div>
-                  </div>
-                  <select class="ed-select" id="controls-mode-sel" style="min-width:90px;">
-                    <option value="overlay" ${(c.controls_mode ?? "overlay") === "overlay" ? "selected" : ""}>Overlay</option>
-                    <option value="fixed" ${c.controls_mode === "fixed" ? "selected" : ""}>Vast</option>
-                  </select>
+                <div class="lbl">Controls position</div>
+                <div class="segwrap">
+                  <button class="seg ${(c.controls_mode ?? "overlay") === "overlay" ? "on" : ""}" data-ctrlmode="overlay">Overlay</button>
+                  <button class="seg ${c.controls_mode === "fixed" ? "on" : ""}" data-ctrlmode="fixed">Fixed</button>
                 </div>
               </div>
 
               <div class="row">
                 <div class="row-head">
                   <div>
-                    <div class="lbl">Camera titel tonen</div>
-                    <div class="desc">Naam van de camera in de controls bar.</div>
+                    <div class="lbl">Show camera title</div>
+                    <div class="desc">Camera name shown in the controls bar.</div>
                   </div>
                   <div class="togrow">
                     <label class="cgc-switch"><input type="checkbox" id="showcameratitle" ${c.show_camera_title !== false ? "checked" : ""} ${c.controls_mode === "fixed" ? "disabled" : ""}><span class="cgc-track"></span></label>
@@ -11001,13 +10982,14 @@ class CameraGalleryCardEditor extends HTMLElement {
           flex: 0 0 auto;
         }
 
-        .style-section-head > span {
+        .style-section-head > span:not(.style-chevron) {
           flex: 1 1 auto;
         }
 
         .style-chevron {
           color: var(--ed-text2);
           flex: 0 0 auto;
+          margin-left: auto;
           transition: transform 0.2s ease;
           display: flex;
           align-items: center;
@@ -11123,7 +11105,7 @@ class CameraGalleryCardEditor extends HTMLElement {
         }
         .ed-input:focus { border-color: color-mix(in srgb, var(--ed-input-border) 25%, var(--primary-color, #03a9f4) 75%); box-shadow: 0 0 0 3px var(--ed-focus-ring), var(--ed-section-glow); }
 details summary { user-select: none; }
-        details summary .details-chevron { transition: transform 0.15s; }
+        details summary .details-chevron { transition: transform 0.15s; margin-left: auto; }
         details[open] summary .details-chevron { transform: rotate(90deg); }
         .cgc-row-summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; padding: 0; }
         .cgc-row-summary::-webkit-details-marker { display: none; }
@@ -11583,8 +11565,11 @@ if (oldPanel && tmp.firstElementChild) {
       this._set("persistent_controls", !!e.target.checked);
     });
 
-    this.shadowRoot.querySelector("#controls-mode-sel")?.addEventListener("change", (e) => {
-      this._set("controls_mode", e.target.value);
+    this.shadowRoot.querySelectorAll(".seg[data-ctrlmode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this._set("controls_mode", btn.dataset.ctrlmode);
+        btn.closest(".segwrap")?.querySelectorAll(".seg").forEach((s) => s.classList.toggle("on", s === btn));
+      });
     });
 
     $("showcameratitle")?.addEventListener("change", (e) => {
@@ -12332,8 +12317,8 @@ if (oldPanel && tmp.firstElementChild) {
       lblSpan.className = 'lbl';
       lblSpan.style.margin = '0';
       lblSpan.textContent = title;
-      summary.appendChild(chevron);
       summary.appendChild(lblSpan);
+      summary.appendChild(chevron);
 
       const body = document.createElement('div');
       body.className = 'cgc-row-body';
