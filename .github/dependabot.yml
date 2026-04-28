@@ -12,23 +12,17 @@ updates:
       prefix: chore
       include: scope
     groups:
-      rollup:
+      # Bundle all dev-tooling minor + patch updates into a single weekly PR.
+      # Major bumps fall through to individual PRs so they get a closer look.
+      # Production deps (lit) are not in this group, so they always get an
+      # individual PR for careful review — they affect the shipped bundle.
+      dev-tooling:
+        dependency-type: development
+        update-types:
+          - "minor"
+          - "patch"
         patterns:
-          - "rollup"
-          - "@rollup/*"
-      eslint:
-        patterns:
-          - "eslint"
-          - "@eslint/*"
-          - "eslint-*"
-          - "typescript-eslint"
-      typescript:
-        patterns:
-          - "typescript"
-          - "tslib"
-      lit:
-        patterns:
-          - "lit"
+          - "*"
 
   - package-ecosystem: github-actions
     directory: "/"
