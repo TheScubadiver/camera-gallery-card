@@ -46,6 +46,7 @@ export default [
     rules: {
       "no-undef": "off",
       "no-unused-vars": "off",
+      "no-useless-assignment": "off",
       "no-redeclare": "off",
       "no-useless-escape": "off",
       "@typescript-eslint/no-unused-vars": "off",
