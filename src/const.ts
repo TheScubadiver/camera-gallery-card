@@ -4,6 +4,15 @@
  * Public CSS variables (the `--cgc-*` styling API) live in styles, not here.
  */
 
+// -------- Literal unions for constrained string config values --------
+export type SourceMode = "sensor" | "media" | "combined";
+export type PreviewPosition = "top" | "bottom";
+export type ThumbBarPosition = "top" | "bottom" | "hidden";
+export type ThumbLayout = "horizontal" | "vertical";
+
+/** Public CSS-variable namespace — every styling API key is `--cgc-*`. */
+export type CssVarKey = `--cgc-${string}`;
+
 // -------- Sensor / fileList ingestion --------
 export const ATTR_NAME = "fileList";
 
@@ -63,11 +72,11 @@ export const DEFAULT_LIVE_ENABLED = false;
 export const DEFAULT_MAX_MEDIA = 50;
 export const DEFAULT_PER_ROOT_MIN_LIMIT = 40;
 export const DEFAULT_PREVIEW_CLOSE_ON_TAP_WHEN_GATED = true;
-export const DEFAULT_PREVIEW_POSITION = "top"; // "top" | "bottom"
+export const DEFAULT_PREVIEW_POSITION = "top" satisfies PreviewPosition;
 export const DEFAULT_RESOLVE_BATCH = 32;
-export const DEFAULT_SOURCE_MODE = "sensor"; // "sensor" | "media" | "combined"
-export const DEFAULT_THUMB_BAR_POSITION = "bottom"; // "bottom" | "top" | "hidden"
-export const DEFAULT_THUMB_LAYOUT = "horizontal"; // "horizontal" | "vertical"
+export const DEFAULT_SOURCE_MODE = "sensor" satisfies SourceMode;
+export const DEFAULT_THUMB_BAR_POSITION = "bottom" satisfies ThumbBarPosition;
+export const DEFAULT_THUMB_LAYOUT = "horizontal" satisfies ThumbLayout;
 export const DEFAULT_THUMBNAIL_FRAME_PCT = 0; // 0% = first frame, 100% = last frame
 export const DEFAULT_VISIBLE_OBJECT_FILTERS: readonly ObjectFilter[] = [];
 export const DEFAULT_WALK_DEPTH = 6;
