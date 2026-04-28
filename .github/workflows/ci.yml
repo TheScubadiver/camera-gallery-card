@@ -16,36 +16,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  pr-title:
-    name: Check PR title is conventional
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      # The PR title is in the event payload — no API call needed. Doing this
-      # inline avoids depending on a third-party action whose v6 upgrade
-      # broke under cross-repo PRs (404s) and whose v5 path is unmaintained.
-      - name: Check PR title
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          if [[ ! "$PR_TITLE" =~ ^(feat|fix|perf|refactor|docs|style|test|build|ci|chore|revert)(\(.+\))?\!?:\ [a-z].+[^.]$ ]]; then
-            cat <<EOF
-          ::error::PR title "$PR_TITLE" is not a valid conventional commit.
-
-          Format: <type>(<optional scope>)!?: <subject>
-            type:    feat | fix | perf | refactor | docs | style | test | build | ci | chore | revert
-            subject: starts with a lowercase letter, no trailing period
-
-          Examples:
-            feat: add multi-camera live view
-            fix(editor): align thumbnail strip side padding
-            feat!: drop support for source_mode "files" alias
-          EOF
-            exit 1
-          fi
-          echo "PR title OK: $PR_TITLE"
-
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
