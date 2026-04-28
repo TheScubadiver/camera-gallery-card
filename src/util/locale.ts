@@ -82,6 +82,18 @@ export function formatDateTime(dtKey: string, locale: FrontendLocaleData | undef
   }
 }
 
+export function formatMonth(monthKey: string, locale: FrontendLocaleData | undefined): string {
+  if (!monthKey) return "";
+  try {
+    return new Intl.DateTimeFormat(locale?.language, {
+      month: "long",
+      year: "numeric",
+    }).format(new Date(`${monthKey}-01T00:00:00`));
+  } catch {
+    return monthKey;
+  }
+}
+
 export function formatDay(dayKey: string, locale: FrontendLocaleData | undefined): string {
   if (!dayKey) return "";
   try {

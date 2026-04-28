@@ -5,7 +5,13 @@
 import { LitElement, html, css } from "lit";
 
 import { dtMsFromSrc, extractDateTimeKey, extractDayKey } from "./data/datetime-parsing";
-import { formatDateTime, formatDay, formatTimeFromMs, resolveLocale } from "./util/locale";
+import {
+  formatDateTime,
+  formatDay,
+  formatMonth,
+  formatTimeFromMs,
+  resolveLocale,
+} from "./util/locale";
 import {
   ATTR_NAME,
   AVAILABLE_OBJECT_FILTERS,
@@ -1817,7 +1823,7 @@ class CameraGalleryCard extends LitElement {
         <div class="live-picker-list">
           ${[...groups.entries()].map(([monthKey, monthDays]) => html`
             <div class="dp-month-header">
-              ${new Intl.DateTimeFormat(resolveLocale(this._hass), { month: "long", year: "numeric" }).format(new Date(`${monthKey}-01T00:00:00`))}
+              ${formatMonth(monthKey, this._hass?.locale)}
             </div>
             ${monthDays.map((day) => {
               const isSel = day === selected;
@@ -3507,23 +3513,7 @@ class CameraGalleryCard extends LitElement {
     if (!name) return "";
 
     const dtKey = extractDateTimeKey(src, this._dtOpts);
-    if (dtKey) {
-      const nice = formatDateTime(dtKey, this._hass?.locale);
-      if (nice) return nice;
-    }
-
-    const dayKey = extractDayKey(src, this._dtOpts);
-    if (dayKey) {
-      try {
-        return new Intl.DateTimeFormat(resolveLocale(this._hass), {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }).format(new Date(`${dayKey}T00:00:00`));
-      } catch (_) {
-        return dayKey;
-      }
-    }
+    if (dtKey) return formatDateTime(dtKey, this._hass?.locale);
 
     const base = name.split("/").pop() || name;
     const noExt = base.replace(/\.(mp4|webm|mov|m4v|jpg|jpeg|png|webp|gif)$/i, "");

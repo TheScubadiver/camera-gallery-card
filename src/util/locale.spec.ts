@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDateTime, formatDay, formatTimeFromMs, resolveLocale, useAmPm } from "./locale";
+import {
+  formatDateTime,
+  formatDay,
+  formatMonth,
+  formatTimeFromMs,
+  resolveLocale,
+  useAmPm,
+} from "./locale";
 import type { HomeAssistant } from "../types/hass";
 
 describe("resolveLocale", () => {
@@ -101,5 +108,13 @@ describe("Format functions (locale-dependent)", () => {
   it("formatTimeFromMs produces a time string", () => {
     const ms = new Date(2024, 0, 15, 14, 5, 0).getTime();
     expect(formatTimeFromMs(ms, enUS)).toMatch(/14:05/);
+  });
+
+  it("formatMonth produces a localized month/year string", () => {
+    expect(formatMonth("2024-01", enUS)).toMatch(/January.*2024/);
+  });
+
+  it("formatMonth returns empty string for empty input", () => {
+    expect(formatMonth("", undefined)).toBe("");
   });
 });
