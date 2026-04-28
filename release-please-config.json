@@ -20,6 +20,12 @@
         { "type": "build", "section": "Build System", "hidden": true },
         { "type": "ci", "section": "CI", "hidden": true },
         { "type": "chore", "section": "Chores", "hidden": true }
+      ],
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "README.md"
+        }
       ]
     }
   }
