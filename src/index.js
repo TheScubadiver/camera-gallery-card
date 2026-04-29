@@ -4,7 +4,14 @@
 
 import { LitElement, html, css } from "lit";
 
-import { dtMsFromSrc, extractDateTimeKey, extractDayKey } from "./data/datetime-parsing";
+import {
+  dayKeyFromMs,
+  dtKeyFromMs,
+  dtMsFromSrc,
+  extractDateTimeKey,
+  extractDayKey,
+} from "./data/datetime-parsing";
+import { frigateEventIdMs } from "./util/frigate";
 import {
   formatDateTime,
   formatDay,
@@ -446,10 +453,12 @@ class CameraGalleryCard extends LitElement {
       return;
     }
 
-    const withDt = rawItems.map((src, idx) => {
-      const dtMs = dtMsFromSrc(src, this._dtOpts);
-      const dayKey = extractDayKey(src, this._dtOpts);
-      return { dayKey, dtMs, idx, src };
+    const withDt = rawItems.map((it, idx) => {
+      const dtMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
+      const dayKey = Number.isFinite(dtMs)
+        ? dayKeyFromMs(dtMs)
+        : extractDayKey(it.src, this._dtOpts);
+      return { dayKey, dtMs, idx, src: it.src };
     });
 
     withDt.sort((a, b) => {
@@ -2481,7 +2490,8 @@ class CameraGalleryCard extends LitElement {
     }
 
     if (!match) {
-      const videoMs = dtMsFromSrc(src, this._dtOpts);
+      const videoMs =
+        this._ms?.listIndex?.get(src)?.dtMs ?? dtMsFromSrc(src, this._dtOpts);
 
       if (Number.isFinite(videoMs)) {
         let best = null;
@@ -2921,15 +2931,24 @@ class CameraGalleryCard extends LitElement {
 
           this._frigateSnapshots = snapshotItems
             .filter((x) => !!x?.media_content_id)
-            .map((x) => ({
-              id: String(x.media_content_id || ""),
-              title: String(x.title || ""),
-              mime: String(x.mime_type || ""),
-              cls: String(x.media_class || ""),
-              thumb: String(x.thumbnail || ""),
-              dtMs: dtMsFromSrc(String(x.title || x.media_content_id || ""), this._dtOpts),
-              dayKey: extractDayKey(String(x.title || x.media_content_id || ""), this._dtOpts),
-            }))
+            .map((x) => {
+              const id = String(x.media_content_id || "");
+              const title = String(x.title || "");
+              const dtMsAttached = frigateEventIdMs(id);
+              const dtMs = dtMsAttached ?? dtMsFromSrc(title || id, this._dtOpts);
+              const dayKey = Number.isFinite(dtMs)
+                ? dayKeyFromMs(dtMs)
+                : extractDayKey(title || id, this._dtOpts);
+              return {
+                id,
+                title,
+                mime: String(x.mime_type || ""),
+                cls: String(x.media_class || ""),
+                thumb: String(x.thumbnail || ""),
+                dtMs,
+                dayKey,
+              };
+            })
             .filter((x) => !!x.id);
         } catch (e) {
           console.warn("Frigate snapshots load failed:", e);
@@ -2941,20 +2960,28 @@ class CameraGalleryCard extends LitElement {
 
       let items = flat
         .filter((x) => !!x?.media_content_id)
-        .map((x) => ({
-          cls: String(x.media_class || ""),
-          id: String(x.media_content_id || ""),
-          mime: String(x.mime_type || ""),
-          title: String(x.title || ""),
-          thumb: String(x.thumbnail || ""),
-        }))
+        .map((x) => {
+          const id = String(x.media_content_id || "");
+          const out = {
+            cls: String(x.media_class || ""),
+            id,
+            mime: String(x.mime_type || ""),
+            title: String(x.title || ""),
+            thumb: String(x.thumbnail || ""),
+          };
+          // Frigate event-id epoch is on the URI itself — attach so the
+          // gallery can use it without re-parsing.
+          const ms = this._isFrigateRoot(id) ? frigateEventIdMs(id) : null;
+          if (ms !== null) out.dtMs = ms;
+          return out;
+        })
         .filter((x) => !!x.id);
 
       items = this._dedupeByRelPath(items);
 
       items.sort((a, b) => {
-        const am = dtMsFromSrc(a.id, this._dtOpts);
-        const bm = dtMsFromSrc(b.id, this._dtOpts);
+        const am = a.dtMs ?? dtMsFromSrc(a.id, this._dtOpts);
+        const bm = b.dtMs ?? dtMsFromSrc(b.id, this._dtOpts);
         const aOk = Number.isFinite(am);
         const bOk = Number.isFinite(bm);
         if (aOk && bOk && bm !== am) return bm - am;
@@ -3014,7 +3041,16 @@ class CameraGalleryCard extends LitElement {
       const title = [ts ? new Date(ts).toLocaleString() : "", camera, label]
         .filter(Boolean).join(" — ");
       this._ms.urlCache.set(id, clipUrl);
-      items.push({ cls: "video", id, mime: "video/mp4", title, thumb: thumbUrl });
+      items.push({
+        cls: "video",
+        id,
+        mime: "video/mp4",
+        title,
+        thumb: thumbUrl,
+        // ts === 0 only when ev.start_time is missing/falsy — leave dtMs absent
+        // so the gallery falls back to path parsing instead of pinning to 1970.
+        dtMs: ts || undefined,
+      });
     }
     return items;
   }
@@ -3295,7 +3331,7 @@ class CameraGalleryCard extends LitElement {
         .toLowerCase();
 
     for (const it of items || []) {
-      const key = norm(it?.media_content_id || it?.path || it?.id || it);
+      const key = norm(it?.media_content_id || it?.path || it?.id || it?.src || it);
       if (!key) continue;
       if (!seen.has(key)) seen.set(key, it);
     }
@@ -3303,9 +3339,25 @@ class CameraGalleryCard extends LitElement {
     return Array.from(seen.values());
   }
 
+  /**
+   * @typedef {{ src: string, dtMs?: number }} CardItem
+   *
+   * Returns the unified list of items the gallery should render. Sources that
+   * have an authoritative timestamp (Frigate REST API; Frigate media-source
+   * URIs via event-id) attach `dtMs` here so render paths can prefer it over
+   * filename/folder parsing. Sensor items have no authoritative timestamp and
+   * arrive as `{ src }` only — gallery falls back to path parsing.
+   */
   _items() {
     const mode = this.config?.source_mode;
     const usingMediaSource = mode === "media";
+
+    // Look up media-source-side metadata (dtMs) for a given src. Sensor-only
+    // srcs aren't in `_ms.listIndex` and surface as plain `{ src }`.
+    const enrich = (src) => {
+      const dtMs = this._ms?.listIndex?.get(src)?.dtMs;
+      return typeof dtMs === "number" && Number.isFinite(dtMs) ? { src, dtMs } : { src };
+    };
 
     if (mode === "combined") {
       const entities = this._sensorEntityList();
@@ -3324,27 +3376,26 @@ class CameraGalleryCard extends LitElement {
             part = Array.isArray(parsed)
               ? parsed.map((x) => this._toWebPath(x)).filter(Boolean)
               : [this._toWebPath(raw)].filter(Boolean);
-          } catch (_) { part = [this._toWebPath(raw)].filter(Boolean); }
+          } catch (_) {
+            part = [this._toWebPath(raw)].filter(Boolean);
+          }
         }
         for (const src of part) {
           if (!this._srcEntityMap.has(src)) this._srcEntityMap.set(src, entityId);
         }
         sensorList.push(...part);
       }
-      sensorList = this._dedupeByRelPath(sensorList);
-      const msIds = this._dedupeByRelPath(this._msIds());
-      const merged = this._dedupeByRelPath([...sensorList, ...msIds]);
-      return this._deleted?.size ? merged.filter((x) => !this._deleted.has(x)) : merged;
+      sensorList = this._dedupeByRelPath(sensorList).map(enrich);
+      const msItems = this._dedupeByRelPath(this._msIds()).map(enrich);
+      const merged = this._dedupeByRelPath([...sensorList, ...msItems]);
+      return this._deleted?.size
+        ? merged.filter((it) => !this._deleted.has(it.src))
+        : merged;
     }
 
     if (usingMediaSource) {
-      let ids = this._msIds();
-      ids = this._dedupeByRelPath(ids);
-
-      if (this._deleted?.size) {
-        return ids.filter((id) => !this._deleted.has(id));
-      }
-      return ids;
+      const ids = this._dedupeByRelPath(this._msIds()).map(enrich);
+      return this._deleted?.size ? ids.filter((it) => !this._deleted.has(it.src)) : ids;
     }
 
     const entities = this._sensorEntityList();
@@ -3390,7 +3441,7 @@ class CameraGalleryCard extends LitElement {
       list = list.filter((src) => !this._deleted.has(src));
     }
 
-    return list;
+    return list.map(enrich);
   }
 
   _isVideoSmart(urlOrTitle, mime, cls) {
@@ -3512,7 +3563,11 @@ class CameraGalleryCard extends LitElement {
     const name = this._sourceNameForParsing(src);
     if (!name) return "";
 
-    const dtKey = extractDateTimeKey(src, this._dtOpts);
+    const preMs = this._ms?.listIndex?.get(src)?.dtMs;
+    const dtKey =
+      typeof preMs === "number" && Number.isFinite(preMs)
+        ? dtKeyFromMs(preMs)
+        : extractDateTimeKey(src, this._dtOpts);
     if (dtKey) return formatDateTime(dtKey, this._hass?.locale);
 
     const base = name.split("/").pop() || name;
@@ -3698,10 +3753,12 @@ class CameraGalleryCard extends LitElement {
     const nextFilters = Array.from(set);
 
     const rawItems = this._items();
-    const withDt = rawItems.map((src, idx) => {
-      const dtMs = dtMsFromSrc(src, this._dtOpts);
-      const dayKey = extractDayKey(src, this._dtOpts);
-      return { dayKey, dtMs, idx, src };
+    const withDt = rawItems.map((it, idx) => {
+      const dtMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
+      const dayKey = Number.isFinite(dtMs)
+        ? dayKeyFromMs(dtMs)
+        : extractDayKey(it.src, this._dtOpts);
+      return { dayKey, dtMs, idx, src: it.src };
     });
 
     withDt.sort((a, b) => {
@@ -4444,10 +4501,12 @@ class CameraGalleryCard extends LitElement {
     const rawItems = this._items();
 
     if (rawItems.length) {
-      const withDt = rawItems.map((src, idx) => {
-        const dtMs = dtMsFromSrc(src, this._dtOpts);
-        const dayKey = extractDayKey(src, this._dtOpts);
-        return { dayKey, dtMs, idx, src };
+      const withDt = rawItems.map((it, idx) => {
+        const dtMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
+        const dayKey = Number.isFinite(dtMs)
+          ? dayKeyFromMs(dtMs)
+          : extractDayKey(it.src, this._dtOpts);
+        return { dayKey, dtMs, idx, src: it.src };
       });
 
       withDt.sort((a, b) => {
@@ -4572,10 +4631,12 @@ class CameraGalleryCard extends LitElement {
       return html`<div class="empty">No media found.</div>`;
     }
 
-    const withDt = rawItems.map((src, idx) => {
-      const dtMs = dtMsFromSrc(src, this._dtOpts);
-      const dayKey = extractDayKey(src, this._dtOpts);
-      return { dayKey, dtMs, idx, src };
+    const withDt = rawItems.map((it, idx) => {
+      const dtMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
+      const dayKey = Number.isFinite(dtMs)
+        ? dayKeyFromMs(dtMs)
+        : extractDayKey(it.src, this._dtOpts);
+      return { dayKey, dtMs, idx, src: it.src };
     });
 
     withDt.sort((a, b) => {
