@@ -8,10 +8,18 @@ import {
   dayKeyFromMs,
   dtKeyFromMs,
   dtMsFromSrc,
-  extractDateTimeKey,
   extractDayKey,
+  uniqueDays,
 } from "./data/datetime-parsing";
-import { frigateEventIdMs } from "./util/frigate";
+import {
+  FRIGATE_SNAPSHOTS_ROOT,
+  FRIGATE_URI_PREFIX,
+  fetchFrigateEvents,
+  frigateEventIdMs,
+  hasFrigateConfig,
+  isFrigateRoot,
+  mapFrigateEventToItem,
+} from "./util/frigate";
 import {
   formatDateTime,
   formatDay,
@@ -454,10 +462,8 @@ class CameraGalleryCard extends LitElement {
     }
 
     const withDt = rawItems.map((it, idx) => {
-      const dtMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
-      const dayKey = Number.isFinite(dtMs)
-        ? dayKeyFromMs(dtMs)
-        : extractDayKey(it.src, this._dtOpts);
+      const dtMs = Number.isFinite(it.dtMs) ? it.dtMs : null;
+      const dayKey = dtMs !== null ? dayKeyFromMs(dtMs) : null;
       return { dayKey, dtMs, idx, src: it.src };
     });
 
@@ -470,8 +476,8 @@ class CameraGalleryCard extends LitElement {
       return b.idx - a.idx;
     });
 
-    const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src }));
-    const days = this._uniqueDays(allWithDay);
+    const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src, dtMs: x.dtMs }));
+    const days = uniqueDays(allWithDay);
     const newestDay = days[0] ?? null;
     const activeDay = this._selectedDay ?? newestDay;
 
@@ -742,7 +748,7 @@ class CameraGalleryCard extends LitElement {
 
         // For Frigate: snapshot IDs before clip IDs — snapshots are needed for thumbnail display,
         // clips are only needed when the user clicks to play
-        if (this._hasFrigateSource()) {
+        if (hasFrigateConfig(this.config)) {
           for (const src of visibleThumbIds) {
             if (src === selectedSrc) continue;
             const snapId = this._findMatchingSnapshotMediaId(src);
@@ -858,6 +864,23 @@ class CameraGalleryCard extends LitElement {
       filenameFormat: this.config?.filename_datetime_format,
       resolveName: this.__dtResolveName,
     };
+  }
+
+  // Resolve the best dtMs we know for a src. Order:
+  //   1. Authoritative timestamp attached at the source (e.g., Frigate REST
+  //      _loadFrigateApi sets dtMs from start_time).
+  //   2. Frigate event-id epoch parsed from the URI itself (covers walk
+  //      partial-load before the post-walk enrichment runs, plus any path
+  //      that wasn't routed through _ms.list).
+  //   3. User-format parsing of the filename / folder.
+  // Returns null when nothing matches.
+  _resolveItemMs(src) {
+    const pre = this._ms?.listIndex?.get(src)?.dtMs;
+    if (typeof pre === "number" && Number.isFinite(pre)) return pre;
+    const fid = frigateEventIdMs(src);
+    if (typeof fid === "number" && Number.isFinite(fid)) return fid;
+    const parsed = dtMsFromSrc(src, this._dtOpts);
+    return typeof parsed === "number" && Number.isFinite(parsed) ? parsed : null;
   }
 
   _pathHasClass(path = [], cls = "") {
@@ -2111,7 +2134,7 @@ class CameraGalleryCard extends LitElement {
   _isFrigateMediaItem(src) {
     return (
       this._isMediaSourceId(src) &&
-      String(src || "").startsWith("media-source://frigate/")
+      isFrigateRoot(src)
     );
   }
 
@@ -2334,26 +2357,6 @@ class CameraGalleryCard extends LitElement {
     return String(v || "").startsWith("media-source://");
   }
 
-  _isFrigateRoot(root) {
-    const s = String(root || "");
-    return s.includes("media-source://frigate/") || s === "media-source://frigate";
-  }
-
-  _hasFrigateSource() {
-    const roots =
-      Array.isArray(this.config?.media_sources) && this.config.media_sources.length
-        ? this.config.media_sources
-        : this.config?.media_source
-          ? [this.config.media_source]
-          : [];
-
-    return roots.some((root) => this._isFrigateRoot(root));
-  }
-
-  _getFrigateSnapshotsRoot() {
-    return "media-source://frigate/frigate/event-search/snapshots";
-  }
-
   _isVideo(src) {
     const path = String(src || "").split("?")[0].split("#")[0];
     return /\.(mp4|webm|mov|m4v)$/i.test(path);
@@ -2490,8 +2493,7 @@ class CameraGalleryCard extends LitElement {
     }
 
     if (!match) {
-      const videoMs =
-        this._ms?.listIndex?.get(src)?.dtMs ?? dtMsFromSrc(src, this._dtOpts);
+      const videoMs = this._resolveItemMs(src);
 
       if (Number.isFinite(videoMs)) {
         let best = null;
@@ -2521,7 +2523,7 @@ class CameraGalleryCard extends LitElement {
 
   _queueSnapshotResolveForVisibleThumbs(items) {
     if (!Array.isArray(items) || !items.length) return;
-    if (!this._hasFrigateSource()) return;
+    if (!hasFrigateConfig(this.config)) return;
 
     const snapshotIds = [];
 
@@ -2555,7 +2557,7 @@ class CameraGalleryCard extends LitElement {
   _resolveVideoPoster(it, isMs, thumbUrl, tThumb, selectedUrl) {
     if (!isMs) return this._posterCache.get(it.src) || "";
 
-    if (this._hasFrigateSource()) {
+    if (hasFrigateConfig(this.config)) {
       const snapshotId = this._findMatchingSnapshotMediaId(it.src);
       if (snapshotId) {
         const snapshotUrl = this._ms?.urlCache?.get(snapshotId) || "";
@@ -2785,7 +2787,7 @@ class CameraGalleryCard extends LitElement {
     if (!roots.length) return;
 
     // === FRIGATE HTTP API PATH ===
-    if (this.config?.frigate_url && roots.some(r => this._isFrigateRoot(r)) && !this._ms.frigateApiFailed) {
+    if (this.config?.frigate_url && roots.some(isFrigateRoot) && !this._ms.frigateApiFailed) {
       const cap = this._normMaxMedia(this.config?.max_media);
       const key = `frigate_api:${this.config.frigate_url}:${cap}`;
       const sameKey = this._ms.key === key;
@@ -2865,7 +2867,7 @@ class CameraGalleryCard extends LitElement {
     try {
       const visibleCap = this._normMaxMedia(this.config?.max_media);
       const isFrigateRoot = roots.some((r) =>
-        String(r).includes("media-source://frigate/")
+        isFrigateRoot(r)
       );
 
       const internalCap = Math.min(2000, Math.max(visibleCap * 4, 400));
@@ -2883,9 +2885,7 @@ class CameraGalleryCard extends LitElement {
           try {
             const rootStr = String(root);
             const isLocalRoot = rootStr.includes("media_source/local/");
-            const isFrigateRoot = rootStr.includes("media-source://frigate/");
-
-            const depthLimit = isFrigateRoot
+            const depthLimit = isFrigateRoot(rootStr)
               ? 3
               : isLocalRoot
                 ? Math.min(6, DEFAULT_WALK_DEPTH)
@@ -2920,9 +2920,9 @@ class CameraGalleryCard extends LitElement {
       );
       flat.push(...rootResults.flat());
 
-      if (roots.some((r) => this._isFrigateRoot(r))) {
+      if (roots.some(isFrigateRoot)) {
         try {
-          const snapshotRoot = this._getFrigateSnapshotsRoot();
+          const snapshotRoot = FRIGATE_SNAPSHOTS_ROOT;
           const snapshotItems = await this._msWalkIter(
             snapshotRoot,
             Math.min(400, Math.max(visibleCap * 6, 120)),
@@ -2971,7 +2971,7 @@ class CameraGalleryCard extends LitElement {
           };
           // Frigate event-id epoch is on the URI itself — attach so the
           // gallery can use it without re-parsing.
-          const ms = this._isFrigateRoot(id) ? frigateEventIdMs(id) : null;
+          const ms = isFrigateRoot(id) ? frigateEventIdMs(id) : null;
           if (ms !== null) out.dtMs = ms;
           return out;
         })
@@ -3004,7 +3004,9 @@ class CameraGalleryCard extends LitElement {
   }
 
   async _msLoadFrigateApi() {
-    let base = String(this.config?.frigate_url || "").trim().replace(/\/+$/, "");
+    let base = String(this.config?.frigate_url || "")
+      .trim()
+      .replace(/\/+$/, "");
     if (!base) return null;
     if (!/^https?:\/\//i.test(base)) base = "http://" + base;
 
@@ -3013,44 +3015,17 @@ class CameraGalleryCard extends LitElement {
       Math.max(this._normMaxMedia(this.config?.max_media) * 2, 100)
     );
 
-    let events = null;
-
     // Direct fetch — requires Frigate to allow CORS from the HA origin.
     // For standalone Docker: add a reverse proxy (nginx/Caddy) with Access-Control-Allow-Origin header.
-    try {
-      const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), 15000);
-      const resp = await fetch(`${base}/api/events?limit=${limit}`, { signal: ctrl.signal });
-      if (!resp.ok) return null;
-      events = await resp.json();
-    } catch (_) {
-      return null;
-    }
-
-    if (!Array.isArray(events)) return null;
+    const events = await fetchFrigateEvents(base, limit);
+    if (!events) return null;
 
     const items = [];
     for (const ev of events) {
-      const id = String(ev.id || "");
-      if (!id) continue;
-      const clipUrl  = `${base}/api/events/${id}/clip.mp4`;
-      const thumbUrl = `${base}/api/events/${id}/thumbnail.jpg`;
-      const ts = ev.start_time ? Math.round(ev.start_time * 1000) : 0;
-      const label = String(ev.label || "");
-      const camera = String(ev.camera || "");
-      const title = [ts ? new Date(ts).toLocaleString() : "", camera, label]
-        .filter(Boolean).join(" — ");
-      this._ms.urlCache.set(id, clipUrl);
-      items.push({
-        cls: "video",
-        id,
-        mime: "video/mp4",
-        title,
-        thumb: thumbUrl,
-        // ts === 0 only when ev.start_time is missing/falsy — leave dtMs absent
-        // so the gallery falls back to path parsing instead of pinning to 1970.
-        dtMs: ts || undefined,
-      });
+      const mapped = mapFrigateEventToItem(ev, base);
+      if (!mapped) continue;
+      this._ms.urlCache.set(mapped.item.id, mapped.clipUrl);
+      items.push(mapped.item);
     }
     return items;
   }
@@ -3142,7 +3117,7 @@ class CameraGalleryCard extends LitElement {
 
     if (/^frigate(\/|$)/i.test(v)) {
       const rest = strip(v.replace(/^frigate/i, ""));
-      return rest ? `media-source://frigate/${rest}` : `media-source://frigate`;
+      return rest ? `${FRIGATE_URI_PREFIX}/${rest}` : FRIGATE_URI_PREFIX;
     }
 
     v = v.replace(/^media\//, "");
@@ -3352,11 +3327,12 @@ class CameraGalleryCard extends LitElement {
     const mode = this.config?.source_mode;
     const usingMediaSource = mode === "media";
 
-    // Look up media-source-side metadata (dtMs) for a given src. Sensor-only
-    // srcs aren't in `_ms.listIndex` and surface as plain `{ src }`.
+    // Resolve the best dtMs each src can yield (source-attached → Frigate
+    // event-id parse → user-format parse). Items without a parseable time
+    // surface as plain `{ src }`.
     const enrich = (src) => {
-      const dtMs = this._ms?.listIndex?.get(src)?.dtMs ?? frigateEventIdMs(src);
-      return typeof dtMs === "number" && Number.isFinite(dtMs) ? { src, dtMs } : { src };
+      const dtMs = this._resolveItemMs(src);
+      return dtMs !== null ? { src, dtMs } : { src };
     };
 
     if (mode === "combined") {
@@ -3563,24 +3539,13 @@ class CameraGalleryCard extends LitElement {
     const name = this._sourceNameForParsing(src);
     if (!name) return "";
 
-    const preMs = this._ms?.listIndex?.get(src)?.dtMs ?? frigateEventIdMs(src);
-    const dtKey =
-      typeof preMs === "number" && Number.isFinite(preMs)
-        ? dtKeyFromMs(preMs)
-        : extractDateTimeKey(src, this._dtOpts);
+    const ms = this._resolveItemMs(src);
+    const dtKey = ms !== null ? dtKeyFromMs(ms) : null;
     if (dtKey) return formatDateTime(dtKey, this._hass?.locale);
 
     const base = name.split("/").pop() || name;
     const noExt = base.replace(/\.(mp4|webm|mov|m4v|jpg|jpeg|png|webp|gif)$/i, "");
     return noExt.length > 42 ? `${noExt.slice(0, 39)}…` : noExt;
-  }
-
-  _uniqueDays(itemsWithDay) {
-    const set = new Set();
-    for (const it of itemsWithDay) {
-      if (it.dayKey) set.add(it.dayKey);
-    }
-    return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
   }
 
   // ─── Object filters ───────────────────────────────────────────────
@@ -3754,10 +3719,8 @@ class CameraGalleryCard extends LitElement {
 
     const rawItems = this._items();
     const withDt = rawItems.map((it, idx) => {
-      const dtMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
-      const dayKey = Number.isFinite(dtMs)
-        ? dayKeyFromMs(dtMs)
-        : extractDayKey(it.src, this._dtOpts);
+      const dtMs = Number.isFinite(it.dtMs) ? it.dtMs : null;
+      const dayKey = dtMs !== null ? dayKeyFromMs(dtMs) : null;
       return { dayKey, dtMs, idx, src: it.src };
     });
 
@@ -3770,8 +3733,8 @@ class CameraGalleryCard extends LitElement {
       return b.idx - a.idx;
     });
 
-    const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src }));
-    const days = this._uniqueDays(allWithDay);
+    const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src, dtMs: x.dtMs }));
+    const days = uniqueDays(allWithDay);
     const newestDay = days[0] ?? null;
     const activeDay = this._selectedDay ?? newestDay;
 
@@ -4177,10 +4140,15 @@ class CameraGalleryCard extends LitElement {
       );
     }
 
-    const hasFrigateSource =
-      !!String(config.frigate_url || "").trim() ||
-      [...mediaSourcesClean, mediaRaw].some((s) => s.includes("frigate"));
-    if (!folder_datetime_format && !filename_datetime_format && !hasFrigateSource) {
+    if (
+      !folder_datetime_format &&
+      !filename_datetime_format &&
+      !hasFrigateConfig({
+        frigate_url: config.frigate_url,
+        media_source: mediaRaw,
+        media_sources: mediaSourcesClean,
+      })
+    ) {
       throw new Error(
         "camera-gallery-card: 'folder_datetime_format' or 'filename_datetime_format' is required so files can be grouped by date"
       );
@@ -4505,10 +4473,8 @@ class CameraGalleryCard extends LitElement {
 
     if (rawItems.length) {
       const withDt = rawItems.map((it, idx) => {
-        const dtMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
-        const dayKey = Number.isFinite(dtMs)
-          ? dayKeyFromMs(dtMs)
-          : extractDayKey(it.src, this._dtOpts);
+        const dtMs = Number.isFinite(it.dtMs) ? it.dtMs : null;
+        const dayKey = dtMs !== null ? dayKeyFromMs(dtMs) : null;
         return { dayKey, dtMs, idx, src: it.src };
       });
 
@@ -4521,8 +4487,8 @@ class CameraGalleryCard extends LitElement {
         return b.idx - a.idx;
       });
 
-      const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src }));
-      const days = this._uniqueDays(allWithDay);
+      const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src, dtMs: x.dtMs }));
+      const days = uniqueDays(allWithDay);
       const newestDay = days[0] ?? null;
       const activeDay = this._selectedDay ?? newestDay;
 
@@ -4635,10 +4601,8 @@ class CameraGalleryCard extends LitElement {
     }
 
     const withDt = rawItems.map((it, idx) => {
-      const dtMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
-      const dayKey = Number.isFinite(dtMs)
-        ? dayKeyFromMs(dtMs)
-        : extractDayKey(it.src, this._dtOpts);
+      const dtMs = Number.isFinite(it.dtMs) ? it.dtMs : null;
+      const dayKey = dtMs !== null ? dayKeyFromMs(dtMs) : null;
       return { dayKey, dtMs, idx, src: it.src };
     });
 
@@ -4652,7 +4616,7 @@ class CameraGalleryCard extends LitElement {
     });
 
     const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src, dtMs: x.dtMs }));
-    const days = this._uniqueDays(allWithDay);
+    const days = uniqueDays(allWithDay);
     const newestDay = days[0] ?? null;
     const activeDay = this._selectedDay ?? newestDay;
 
@@ -5090,8 +5054,9 @@ class CameraGalleryCard extends LitElement {
                       ? (hasUrl && !!poster)
                       : (this._revealedThumbs.has(it.src) && hasUrl && !!poster);
 
-                    const tMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
-                    const tTime = formatTimeFromMs(tMs, this._hass?.locale);
+                    const tTime = Number.isFinite(it.dtMs)
+                      ? formatTimeFromMs(it.dtMs, this._hass?.locale)
+                      : "";
 
                     const obj = this._objectForSrc(it.src);
                     const objIcon = this._objectIcon(obj);

@@ -221,3 +221,18 @@ export function dtKeyFromMs(ms: number): string | null {
     `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   );
 }
+
+// ---------- Aggregation ----------
+
+/**
+ * Distinct dayKeys from a list of items, sorted descending (newest first).
+ * Items with no dayKey are skipped. Sort is lexicographic on the canonical
+ * `"YYYY-MM-DD"` shape — equivalent to chronological order.
+ */
+export function uniqueDays(items: readonly { dayKey?: string | null }[]): string[] {
+  const set = new Set<string>();
+  for (const it of items) {
+    if (it?.dayKey) set.add(it.dayKey);
+  }
+  return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
+}

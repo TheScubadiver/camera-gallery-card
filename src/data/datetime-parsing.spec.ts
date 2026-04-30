@@ -10,6 +10,7 @@ import {
   parseDateFromFilename,
   parseFolderFileDatetime,
   parseRawDateFields,
+  uniqueDays,
 } from "./datetime-parsing";
 import type { DatetimeOptions } from "./datetime-parsing";
 
@@ -192,5 +193,28 @@ describe("End-to-end: extractDayKey / extractDateTimeKey", () => {
     );
     const expected = new Date(2023, 11, 31, 0, 0, 0).getTime();
     expect(r).toBe(expected);
+  });
+});
+
+describe("uniqueDays", () => {
+  it("returns distinct dayKeys sorted newest-first", () => {
+    expect(
+      uniqueDays([
+        { dayKey: "2026-01-15" },
+        { dayKey: "2026-01-17" },
+        { dayKey: "2026-01-15" },
+        { dayKey: "2025-12-31" },
+      ])
+    ).toEqual(["2026-01-17", "2026-01-15", "2025-12-31"]);
+  });
+
+  it("skips items without a dayKey", () => {
+    expect(uniqueDays([{ dayKey: "2026-04-29" }, { dayKey: null }, { dayKey: "" }, {}])).toEqual([
+      "2026-04-29",
+    ]);
+  });
+
+  it("returns an empty array for empty input", () => {
+    expect(uniqueDays([])).toEqual([]);
   });
 });
