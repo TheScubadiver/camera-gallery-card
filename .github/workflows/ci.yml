@@ -39,17 +39,9 @@ jobs:
       - name: Format check
         run: npm run format:check
 
+      # Verifies the bundle still builds clean from src/. The committed
+      # dist/camera-gallery-card.js is *not* required to be in sync with src/
+      # on PR branches — sync-bundle.yml handles that automatically after each
+      # push to main, and release.yml handles it on the release PR's branch.
       - name: Build
         run: npm run build
-
-      - name: Verify committed bundle is up to date
-        # release-please's release PRs bump package.json (which changes
-        # CARD_VERSION via __VERSION__), so a fresh build will differ from
-        # the committed bundle until release.yml's sync-bundle-in-release-pr
-        # job rebuilds and commits it. Skip the drift check on those PRs.
-        if: ${{ !startsWith(github.head_ref, 'release-please--') }}
-        run: |
-          if ! git diff --exit-code -- dist/camera-gallery-card.js; then
-            echo "::error::dist/camera-gallery-card.js is out of sync with src/. Run 'npm run build' and commit the result."
-            exit 1
-          fi
