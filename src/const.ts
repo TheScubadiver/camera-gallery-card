@@ -32,6 +32,15 @@ export const SENSOR_POSTER_QUEUE_LIMIT = 100;
 export const THUMB_LONG_PRESS_MOVE_PX = 12;
 export const THUMB_LONG_PRESS_MS = 520;
 
+// -------- Datetime parsing --------
+
+/**
+ * Two-digit-year pivot. NVR firmwares write "24" for 2024, never "1924".
+ * Files older than 2000 are not realistic for IP cameras; revisit if a
+ * user reports legitimate 19xx dates.
+ */
+export const YEAR_2DIGIT_PIVOT = 2000;
+
 // -------- Object-filter UI --------
 export const MAX_VISIBLE_OBJECT_FILTERS = 9;
 
@@ -65,7 +74,6 @@ export const DEFAULT_CLEAN_MODE = false;
 export const DEFAULT_DELETE_CONFIRM = true;
 export const DEFAULT_DELETE_PREFIX = "/config/www/";
 export const DEFAULT_DELETE_SERVICE = "";
-export const DEFAULT_FILENAME_DATETIME_FORMAT = "";
 export const DEFAULT_FRIGATE_API_LIMIT = 500;
 export const DEFAULT_LIVE_AUTO_MUTED = true;
 export const DEFAULT_LIVE_ENABLED = false;

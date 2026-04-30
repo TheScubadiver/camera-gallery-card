@@ -29,6 +29,9 @@ dist/*
 *.tsbuildinfo
 .eslintcache
 
+# Test coverage reports
+coverage/
+
 # Local-only contributor docs (not part of upstream)
 CLAUDE.md
 plans/

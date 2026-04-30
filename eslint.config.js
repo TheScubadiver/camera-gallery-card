@@ -36,6 +36,15 @@ export default [
       "@typescript-eslint/ban-ts-comment": "off",
       "no-empty": ["error", { allowEmptyCatch: true }],
       "no-console": ["warn", { allow: ["info", "warn", "error"] }],
+      // Catch local variables that shadow imports / outer-scope bindings.
+      // PR #56 hit this exact class of bug: a `const isFrigateRoot = …`
+      // in the same scope as the imported `isFrigateRoot` function shadowed
+      // the import and crashed `_msEnsureLoaded` at runtime via TDZ when
+      // the arrow body called the still-being-initialized binding. The TS
+      // variant honours type-only imports so it won't false-positive on
+      // `import type` shapes.
+      "no-shadow": "off",
+      "@typescript-eslint/no-shadow": "error",
     },
   },
   {
