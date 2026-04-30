@@ -3563,7 +3563,7 @@ class CameraGalleryCard extends LitElement {
     const name = this._sourceNameForParsing(src);
     if (!name) return "";
 
-    const preMs = this._ms?.listIndex?.get(src)?.dtMs;
+    const preMs = this._ms?.listIndex?.get(src)?.dtMs ?? frigateEventIdMs(src);
     const dtKey =
       typeof preMs === "number" && Number.isFinite(preMs)
         ? dtKeyFromMs(preMs)
@@ -4651,7 +4651,7 @@ class CameraGalleryCard extends LitElement {
       return b.idx - a.idx;
     });
 
-    const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src }));
+    const allWithDay = withDt.map((x) => ({ dayKey: x.dayKey, src: x.src, dtMs: x.dtMs }));
     const days = this._uniqueDays(allWithDay);
     const newestDay = days[0] ?? null;
     const activeDay = this._selectedDay ?? newestDay;
@@ -5090,7 +5090,7 @@ class CameraGalleryCard extends LitElement {
                       ? (hasUrl && !!poster)
                       : (this._revealedThumbs.has(it.src) && hasUrl && !!poster);
 
-                    const tMs = dtMsFromSrc(it.src, this._dtOpts);
+                    const tMs = it.dtMs ?? dtMsFromSrc(it.src, this._dtOpts);
                     const tTime = formatTimeFromMs(tMs, this._hass?.locale);
 
                     const obj = this._objectForSrc(it.src);
