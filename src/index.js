@@ -6363,7 +6363,7 @@ class CameraGalleryCard extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        gap: 6px;
         padding: var(--topbarPad, 0px);
         margin: var(--topbarMar, 0px);
         overflow: hidden;
